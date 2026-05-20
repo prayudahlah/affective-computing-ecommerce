@@ -1,0 +1,9 @@
+FROM docker.io/python:3.12.13-alpine3.23
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+COPY . .
+
+CMD ["python", "main.py"]
