@@ -102,12 +102,12 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
     scrape_interval = int(os.getenv("SCRAPE_INTERVAL", "10")) 
 
     # Ambil waktu scraping terakhir dari metadata (default 0 jika belum pernah di-scrape)
-    last_scraped_ctime = 0
+    comment_time = 0
     if shop_key in metadata:
-        last_scraped_ctime = metadata[shop_key].get("last_scraped_ctime", 0)
+        comment_time = metadata[shop_key].get("comment_time", 0)
         formatted_last_time = metadata[shop_key].get("last_scraped_time_formatted", "N/A")
         print(f"\nMemulai Incremental Scraping untuk Shop ID: {shop_id}")
-        print(f"Ulasan terakhir yang di-scrape: {formatted_last_time} (Epoch: {last_scraped_ctime})")
+        print(f"Ulasan terakhir yang di-scrape: {formatted_last_time} (Epoch: {comment_time})")
     else:
         print(f"\nMemulai Scraping Pertama Kali untuk Shop ID: {shop_id}")
 
@@ -120,7 +120,7 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
 
     count = 0
     new_reviews = []
-    max_ctime_in_run = last_scraped_ctime
+    max_ctime_in_run = comment_time
     stop_scraping = False
 
     while not stop_scraping:
@@ -141,8 +141,8 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
             for value in data_review:
                 current_ctime = value.get("ctime", 0)
                 
-                # Ulasan BARU (ctime > last_scraped_ctime)
-                if current_ctime > last_scraped_ctime:
+                # Ulasan BARU (ctime > comment_time)
+                if current_ctime > comment_time:
                     product_name = "Produk tidak diketahui"
                     if value.get("product_items"):
                         product_name = value["product_items"][0].get("name", "Produk tidak diketahui")
@@ -200,7 +200,7 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
         
         # Update metadata JSON
         metadata[shop_key] = {
-            "last_scraped_ctime": max_ctime_in_run,
+            "comment_time": max_ctime_in_run,
             "last_scraped_time_formatted": datetime.fromtimestamp(max_ctime_in_run).strftime("%Y-%m-%d %H:%M"),
             "last_run_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "new_reviews_count": len(new_reviews),
@@ -214,12 +214,13 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
         print("Selesai! Tidak ada ulasan baru yang ditemukan.")
 
 if __name__ == '__main__':
+    data_dir = os.getenv("DATA_DIR", "/app/data")
 
     url_shop = os.getenv("SHOPEE_URL")
     cookies_file = "cookies.json"
-    metadata_file = "latest_metadata.json"
-    csv_output = "shoope_rating.csv"
-    
+    metadata_file = os.path.join(data_dir, "latest_metadata.json")
+    csv_output = os.path.join(data_dir, "shoope_rating.csv")
+
     shopee_incremental_scraper(
         url=url_shop,
         cookies_json=cookies_file,
