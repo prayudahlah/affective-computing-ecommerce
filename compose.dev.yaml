@@ -131,3 +131,18 @@ services:
       context: ./app/visualization
       dockerfile: Containerfile
     network_mode: host
+
+  scraper:
+    build:
+      context: ./app/scraper
+      dockerfile: Containerfile
+    network_mode: host
+    restart: "no"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
+      KAFKA_TOPIC: polled-data
+    env_file: .env
+    volumes:
+      - ./storage/scraper:/app/data
