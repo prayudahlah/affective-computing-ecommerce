@@ -2,3 +2,8 @@
 .env.*
 !.env.example
 storage/
+
+# Scraper
+cookies.json
+latest_metadata.json
+shoope_rating.csv
