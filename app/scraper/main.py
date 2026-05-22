@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import json
 from kafka import KafkaProducer
+import time
 
 def load_cookie(cookies_json) -> str:
     if not os.path.exists(cookies_json):
@@ -98,6 +99,7 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
     metadata = load_metadata(metadata_json)
     producer = init_kafka_producer()
     kafka_topic = os.getenv("KAFKA_TOPIC", "polled-data")
+    scrape_interval = int(os.getenv("SCRAPE_INTERVAL", "10")) 
 
     # Ambil waktu scraping terakhir dari metadata (default 0 jika belum pernah di-scrape)
     last_scraped_ctime = 0
@@ -179,6 +181,8 @@ def shopee_incremental_scraper(url, cookies_json="cookies.json", metadata_json="
             
             if not stop_scraping:
                 count += 6
+                print(f"Sleep {scrape_interval} detik")
+                time.sleep(scrape_interval)
                 
         except Exception as e:
             print(f"Terjadi kesalahan saat memproses data: {e}")
