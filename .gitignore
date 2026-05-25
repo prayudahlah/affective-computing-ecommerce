@@ -3,6 +3,7 @@
 !.env.example
 storage/
 .idea
+__pycache__
 
 # Scraper
 cookies.json
