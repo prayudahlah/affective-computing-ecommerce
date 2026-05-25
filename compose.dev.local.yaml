@@ -44,12 +44,16 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
+<<<<<<< HEAD
       test:
         [
           "CMD-SHELL",
           "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092
             --list",
         ]
+=======
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+>>>>>>> 0699ad4 (data-poller sbg producer langsung ke kafka, hapus folder scrap)
       interval: 10s
       timeout: 10s
       retries: 10

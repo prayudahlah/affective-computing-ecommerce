@@ -22,7 +22,6 @@ CATCHUP_THRESHOLD_SECS = int(os.getenv("CATCHUP_THRESHOLD_SECS", "3600"))
 METADATA_FILE = os.path.join(DATA_DIR, "latest_metadata.json")
 COOKIES_FILE = os.path.join(DATA_DIR, "cookies.json")
 
-
 # ── Kafka ─────────────────────────────────────────────────────────
 def init_producer() -> KafkaProducer:
     print(f"[KAFKA] Menghubungkan ke {KAFKA_BOOTSTRAP_SERVERS}...")
@@ -60,7 +59,6 @@ def load_metadata() -> dict:
         print(f"[META] Gagal membaca metadata: {e}")
         return {}
 
-
 def save_metadata(metadata: dict):
     os.makedirs(DATA_DIR, exist_ok=True)
     try:
@@ -69,7 +67,6 @@ def save_metadata(metadata: dict):
         print(f"[META] Metadata diperbarui.")
     except Exception as e:
         print(f"[META] Gagal menyimpan metadata: {e}")
-
 
 # ── Shared State untuk Catch-up ───────────────────────────────────
 class CatchUpState:
