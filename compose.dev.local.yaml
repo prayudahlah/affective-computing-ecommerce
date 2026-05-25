@@ -5,12 +5,17 @@ services:
       dockerfile: Containerfile
     restart: unless-stopped
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: polled-data
-      KAFKA_GROUP_ID: polled-data-group
+      SCRAPE_INTERVAL: "10"
+      POLL_INTERVAL: "60"
+      DATA_DIR: /app/data
     env_file: .env
+    volumes:
+      - ./storage/scraper:/app/data
     profiles:
       - device_1
       - dev
@@ -23,8 +28,8 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
@@ -36,11 +41,11 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
     env_file: .env
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 10s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 45s
     profiles:
       - device_1
       - dev
@@ -154,18 +159,3 @@ services:
     profiles:
       - device_4
       - dev
-
-  scraper:
-    build:
-      context: ./app/scraper
-      dockerfile: Containerfile
-    network_mode: host
-    restart: "no"
-    depends_on:
-      - kafka
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
-      KAFKA_TOPIC: polled-data
-    env_file: .env
-    volumes:
-      - ./storage/scraper:/app/data
