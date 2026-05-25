@@ -99,7 +99,6 @@ async def _fetch_once(
             print(f"[SCRAPE] HTTP {resp.status} pada offset {offset}.")
             return None
 
-        # Baca raw text dulu untuk bisa log kalau parsing gagal
         raw = await resp.text()
         if not raw or not raw.strip():
             print(f"[SCRAPE] Respons kosong (empty body) pada offset {offset}.")
@@ -111,13 +110,11 @@ async def _fetch_once(
             print(f"[SCRAPE] JSON decode error pada offset {offset}: {e}")
             return None
 
-        # Shopee kadang mengembalikan returncode != 0 saat rate-limit / session invalid
         returncode = body.get("returncode", 0)
         if returncode != 0:
             print(f"[SCRAPE] returncode={returncode} pada offset {offset} — kemungkinan rate-limit.")
-            return None   # transient, bukan data habis
+            return None
 
-        # Struktur normal: body["data"]["items"]
         data_obj = body.get("data")
         if data_obj is None:
             print(f"[SCRAPE] data=null pada offset {offset} — anggap transient.")
@@ -129,7 +126,6 @@ async def _fetch_once(
 
         items = data_obj.get("items")
 
-        # items=None artinya key tidak ada → anggap transient (struktur tak terduga)
         if items is None:
             print(f"[SCRAPE] items=None pada offset {offset} — anggap transient.")
             return None
@@ -138,7 +134,6 @@ async def _fetch_once(
             print(f"[SCRAPE] items bukan list pada offset {offset}: {type(items)}.")
             return None
 
-        # items=[] artinya halaman benar-benar kosong (data habis)
         return items
 
 
@@ -159,9 +154,8 @@ async def fetch_page(
         try:
             result = await _fetch_once(session, api_url, headers, offset)
             if result is not None:
-                return result   # sukses
+                return result
 
-            # result=None
             if attempt < max_retries:
                 wait = retry_delay * attempt
                 print(f"[SCRAPE] Offset {offset}: retry {attempt}/{max_retries} dalam {wait:.0f}s...")
@@ -207,7 +201,6 @@ async def catchup_worker(
 
         items = await fetch_page(session, shop_id, user_id, offset, headers)
 
-        # None = gagal permanen setelah semua retry
         if items is None or not items:
             label = "Gagal permanen" if items is None else "Halaman kosong"
             async with state.lock:
@@ -222,7 +215,6 @@ async def catchup_worker(
             await asyncio.sleep(CATCHUP_DELAY)
             continue
 
-        # Ada data: reset empty counter
         async with state.lock:
             state.empty_page_count = 0
 
@@ -248,7 +240,6 @@ async def catchup_worker(
                 "ctime"          : current_ctime,
             })
 
-        # Produce batch ke Kafka
         for data in batch:
             producer.send(
                 KAFKA_TOPIC,
@@ -256,7 +247,6 @@ async def catchup_worker(
                 value=data,
             )
 
-        # Update shared state
         async with state.lock:
             state.new_count += len(batch)
             for data in batch:
@@ -267,7 +257,6 @@ async def catchup_worker(
                     f"[W{worker_id}] offset={offset} | +{len(batch)} ulasan"
                     f" | total={state.new_count}"
                 )
-            # Checkpoint periodik
             if state.new_count > 0 and state.new_count % CATCHUP_CHECKPOINT_N == 0:
                 _save_checkpoint(metadata, shop_key, state)
 
@@ -287,7 +276,7 @@ def _save_checkpoint(metadata: dict, shop_key: str, state: CatchUpState):
         "comment_time"               : state.max_ctime,
         "last_scraped_time_formatted": datetime.fromtimestamp(state.max_ctime).strftime("%Y-%m-%d %H:%M"),
         "last_run_time"              : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "last_run_epoch"             : now_epoch,   # ← baru: epoch saat scrape selesai
+        "last_run_epoch"             : now_epoch,
         "new_reviews_count"          : state.new_count,
     }
     save_metadata(metadata)
@@ -388,7 +377,6 @@ def run_realtime(
 
             body = response.json()
 
-            # Guard: response bisa None atau strukturnya tidak sesuai
             if not isinstance(body, dict):
                 print(f"[REALTIME] Respons tidak valid, berhenti.")
                 break
@@ -401,7 +389,7 @@ def run_realtime(
             items = data_obj.get("items") or []
 
             if not items:
-                print("[REALTIME] Tidak ada ulasan lagi.")
+                print("[REALTIME] Tidak ada ulasan baru.")
                 break
 
             for item in items:
@@ -423,6 +411,7 @@ def run_realtime(
                     "waktu transaksi": datetime.fromtimestamp(current_ctime).strftime("%Y-%m-%d %H:%M"),
                     "ctime"          : current_ctime,
                 }
+
                 producer.send(
                     KAFKA_TOPIC,
                     key=str(current_ctime).encode("utf-8"),
@@ -430,6 +419,7 @@ def run_realtime(
                 )
                 print(f"[REALTIME] Terkirim: {data['nama pengguna']} | {data['produk']}")
                 new_count += 1
+
                 if current_ctime > max_ctime:
                     max_ctime = current_ctime
 
@@ -446,6 +436,7 @@ def run_realtime(
     if new_count > 0:
         producer.flush()
         print(f"[REALTIME] Flush selesai. Total terkirim: {new_count} ulasan.")
+
         metadata[shop_key] = {
             "comment_time"               : max_ctime,
             "last_scraped_time_formatted": datetime.fromtimestamp(max_ctime).strftime("%Y-%m-%d %H:%M"),
@@ -456,7 +447,6 @@ def run_realtime(
         save_metadata(metadata)
     else:
         print("[REALTIME] Tidak ada ulasan baru.")
-        # Tetap perbarui last_run_epoch
         if shop_key in metadata:
             metadata[shop_key]["last_run_epoch"] = now_epoch
             metadata[shop_key]["last_run_time"]  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -520,6 +510,7 @@ def scrape_and_produce(producer: KafkaProducer):
 def main():
     producer = init_producer()
     print(f"[POLLER] Mulai polling setiap {POLL_INTERVAL} detik...\n")
+
     while True:
         scrape_and_produce(producer)
         print(f"[POLLER] Selesai satu siklus. Tunggu {POLL_INTERVAL}s...\n")
@@ -528,4 +519,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
