@@ -9,7 +9,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC: polled-data
+      KAFKA_TOPIC: "polled-data"
       SCRAPE_INTERVAL: "10"
       POLL_INTERVAL: "60"
       DATA_DIR: /app/data
