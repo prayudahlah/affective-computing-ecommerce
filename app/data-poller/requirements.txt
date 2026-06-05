@@ -1,1 +1,2 @@
-kafka-python
+requests>=2.25.1
+kafka-python>=2.0.2
