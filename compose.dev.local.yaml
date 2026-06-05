@@ -5,11 +5,14 @@ services:
       dockerfile: Containerfile
     restart: unless-stopped
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC: polled-data
-      KAFKA_GROUP_ID: polled-data-group
+      KAFKA_TOPIC: "polled-data"
+      SCRAPE_INTERVAL: "10"
+      POLL_INTERVAL: "60"
+      DATA_DIR: /app/data
     env_file: .env
     volumes:
       - ./storage/scraper:/app/data
@@ -38,11 +41,11 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
     env_file: .env
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 10s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 45s
     profiles:
       - device_1
       - dev
