@@ -70,12 +70,14 @@ services:
       - dev
 
   mongodb:
-    image: docker.io/mongodb/mongodb-community-server:8.0-ubuntu2204
+    image: docker.io/mongo:8.0
     restart: unless-stopped
     expose:
       - 27017
     ports:
       - ${HOST_IP:-127.0.0.1}:${MONGO_HOST_PORT:-27017}:27017
+    environment:
+      GLIBC_TUNABLES: glibc.pthread.rseq=1 
     volumes:
       - ./storage/mongodb:/data/db:z
     command: ["--replSet", "rs0"]
