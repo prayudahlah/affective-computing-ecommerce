@@ -91,6 +91,33 @@ services:
       - device_2
       - dev
 
+  mongodb-init:
+    image: docker.io/mongo:8.0
+    restart: "no"
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    entrypoint:
+      - mongosh
+      - --host
+      - localhost
+      - --eval
+      - |
+        try {
+          rs.status();
+          console.log("Replica set already initialized");
+        } catch(e) {
+          rs.initiate({
+            _id: "rs0",
+            members: [{ _id: 0, host: "localhost:27017" }]
+          });
+          console.log("Replica set initialized");
+        }
+    profiles:
+      - device_2
+      - dev
+
   debezium:
     build:
       context: ./app/cdc

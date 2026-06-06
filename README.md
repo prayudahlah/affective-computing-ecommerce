@@ -40,23 +40,7 @@ Tunggu semua container berstatus `healthy` atau `running`:
 docker compose -f compose.dev.local.yaml --profile dev ps
 ```
 
-### 4. Inisialisasi MongoDB Replica Set
-
-> ⚠️ Langkah ini **wajib dilakukan sekali** setiap kali folder `storage/mongodb/` baru (fresh clone atau dihapus).
-
-**Linux / Mac:**
-```bash
-docker compose -f compose.dev.local.yaml --profile dev exec mongodb mongosh --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]})"
-```
-
-**Windows (PowerShell):**
-```powershell
-docker compose -f compose.dev.local.yaml --profile dev exec mongodb mongosh --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]})"
-```
-
-Verifikasi berhasil jika output mengandung `"ok": 1`.
-
-### 5. Daftarkan Debezium MongoDB Connector
+### 4. Daftarkan Debezium MongoDB Connector
 
 > ⚠️ Langkah ini **wajib dilakukan sekali** setiap kali container Debezium di-recreate.
 
@@ -112,4 +96,4 @@ Output harus mengandung `"state": "RUNNING"`.
 
 - `data-poller` akan restart otomatis setelah selesai scraping — ini perilaku normal jika tidak ada ulasan baru.
 - Untuk scraping dengan cookie (akses lebih banyak data), letakkan file `cookies.json` di folder `app/data-poller/`.
-- Folder `storage/` tidak ikut di-push ke git (berisi data runtime). Jangan lupa jalankan langkah 4 dan 5 setiap kali fresh clone.
+- Folder `storage/` tidak ikut di-push ke git (berisi data runtime). Jangan lupa jalankan langkah 4 setiap kali fresh clone.
