@@ -40,43 +40,25 @@ Tunggu semua container berstatus `healthy` atau `running`:
 docker compose -f compose.dev.local.yaml --profile dev ps
 ```
 
-### 4. Daftarkan Debezium MongoDB Connector
+### 4. Inisialisasi MongoDB Replica Set
 
-> ⚠️ Langkah ini **wajib dilakukan sekali** setiap kali container Debezium di-recreate.
+Otomatis via service `mongodb-init`. Cek log:
 
-**Linux / Mac:**
 ```bash
-curl -X POST http://localhost:8083/connectors \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "mongodb-source-connector",
-    "config": {
-      "connector.class": "io.debezium.connector.mongodb.MongoDbConnector",
-      "mongodb.connection.string": "mongodb://mongodb:27017/?replicaSet=rs0",
-      "topic.prefix": "cdc.mongodb",
-      "database.include.list": "ecommerce",
-      "collection.include.list": "ecommerce.reviews",
-      "snapshot.mode": "initial"
-    }
-  }'
+docker compose -f compose.dev.local.yaml --profile dev logs mongodb-init
 ```
 
-**Windows (PowerShell):**
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://localhost:8083/connectors" -ContentType "application/json" -Body '{
-  "name": "mongodb-source-connector",
-  "config": {
-    "connector.class": "io.debezium.connector.mongodb.MongoDbConnector",
-    "mongodb.connection.string": "mongodb://mongodb:27017/?replicaSet=rs0",
-    "topic.prefix": "cdc.mongodb",
-    "database.include.list": "ecommerce",
-    "collection.include.list": "ecommerce.reviews",
-    "snapshot.mode": "initial"
-  }
-}'
+Output: `Replica set initialized` atau `Replica set already initialized`.
+
+### 5. Registrasi Debezium Connector
+
+Otomatis via service `debezium-register`. Cek log:
+
+```bash
+docker compose -f compose.dev.local.yaml --profile dev logs debezium-register
 ```
 
-Verifikasi connector berjalan:
+Output: `Success (HTTP 201)` atau `Success (HTTP 409)`. Verifikasi status connector:
 
 **Linux / Mac:**
 ```bash

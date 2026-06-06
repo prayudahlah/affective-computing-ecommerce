@@ -1,3 +1,7 @@
 FROM quay.io/debezium/connect:3.1.2.Final
 
 LABEL description="Debezium MongoDB CDC Connector"
+
+USER root
+RUN microdnf install -y curl && microdnf clean all
+USER kafka
