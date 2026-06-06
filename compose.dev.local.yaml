@@ -127,8 +127,12 @@ services:
       dockerfile: Containerfile
     restart: unless-stopped
     depends_on:
-      - mongodb
-      - kafka
+      mongodb:
+        condition: service_started
+      mongodb-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     ports:
       - 8083:8083
     volumes:
@@ -140,6 +144,25 @@ services:
       OFFSET_STORAGE_TOPIC: debezium.offsets
       STATUS_STORAGE_TOPIC: debezium.status
       JAVA_TOOL_OPTIONS: -Xmx512m
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    profiles:
+      - device_2
+      - dev
+
+  debezium-register:
+    image: docker.io/curlimages/curl:8.12.1
+    restart: "no"
+    depends_on:
+      debezium:
+        condition: service_healthy
+    volumes:
+      - ./scripts/register-debezium-connector.sh:/register.sh:z
+    entrypoint: sh /register.sh
     profiles:
       - device_2
       - dev

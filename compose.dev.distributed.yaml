@@ -125,8 +125,12 @@ services:
     restart: unless-stopped
     network_mode: host
     depends_on:
-      - mongodb
-      - kafka
+      mongodb:
+        condition: service_started
+      mongodb-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     volumes:
       - ./storage/cdc/offset:/offset:z
     environment:
@@ -136,6 +140,26 @@ services:
       OFFSET_STORAGE_TOPIC: debezium.offsets
       STATUS_STORAGE_TOPIC: debezium.status
       JAVA_TOOL_OPTIONS: -Xmx512m
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    profiles:
+      - device_2
+      - dev
+
+  debezium-register:
+    image: docker.io/curlimages/curl:8.12.1
+    restart: "no"
+    network_mode: host
+    depends_on:
+      debezium:
+        condition: service_healthy
+    volumes:
+      - ./scripts/register-debezium-connector.sh:/register.sh:z
+    entrypoint: sh /register.sh localhost 8083
     profiles:
       - device_2
       - dev
