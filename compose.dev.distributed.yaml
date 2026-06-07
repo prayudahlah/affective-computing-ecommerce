@@ -46,6 +46,57 @@ services:
       - device_1
       - dev
 
+  kafka-init:
+    image: docker.io/apache/kafka:4.1.2
+    restart: "no"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    network_mode: "service:kafka"
+    entrypoint:
+      - /opt/kafka/bin/kafka-topics.sh
+      - --bootstrap-server
+      - localhost:9092
+      - --create
+      - --if-not-exists
+      - --topic
+      - polled-data
+      - --partitions
+      - "1"
+      - --replication-factor
+      - "1"
+    profiles:
+      - device_1
+      - dev
+
+  data-prepocess:
+    build:
+      context: ./app/data-prepocess
+      dockerfile: Containerfile
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: "polled-data"
+      SCRAPE_INTERVAL: "10"
+      POLL_INTERVAL: "60"
+      DATA_DIR: /app/data
+      MONGO_URI: "mongodb://localhost:27017"
+      MONGO_DB: ecommerce
+      MONGO_COLLECTION: reviews
+      SPARK_MASTER_URL: spark://spark-master:7077
+      CHECKPOINT_DIR: /app/data/checkpoint
+    env_file: .env
+    volumes:
+      - ./storage/preprocess:/app/data
+    profiles:
+      - device_2
+      - dev
+
   spark-master:
     image: docker.io/apache/spark:4.1.1
     restart: unless-stopped
@@ -59,7 +110,9 @@ services:
       - dev
 
   spark-worker:
-    image: docker.io/apache/spark:4.1.1
+    build:
+      context: ./app/spark
+      dockerfile: Containerfile
     restart: unless-stopped
     depends_on:
       - spark-master
@@ -77,7 +130,7 @@ services:
     ports:
       - ${HOST_IP:-127.0.0.1}:${MONGO_HOST_PORT:-27017}:27017
     environment:
-      GLIBC_TUNABLES: glibc.pthread.rseq=1 
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
     volumes:
       - ./storage/mongodb:/data/db:z
     command: ["--replSet", "rs0"]

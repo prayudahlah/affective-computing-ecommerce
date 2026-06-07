@@ -5,11 +5,8 @@ USER root
 WORKDIR /app
 
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt && \
   python3 -c "import nltk; nltk.download('punkt_tab', download_dir='/usr/share/nltk_data', quiet=True); nltk.download('stopwords', download_dir='/usr/share/nltk_data', quiet=True)"
-RUN wget -q -O /app/colloquial-indonesian-lexicon.csv \
-  https://raw.githubusercontent.com/nasalsabila/kamus-alay/master/colloquial-indonesian-lexicon.csv
 
 RUN wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.1/spark-sql-kafka-0-10_2.13-4.1.1.jar && \
@@ -30,5 +27,3 @@ RUN wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/mongodb/bson/5.1.4/bson-5.1.4.jar
 
 COPY . .
-
-CMD /opt/spark/bin/spark-submit --master ${SPARK_MASTER_URL:-local[*]} /app/main.py
