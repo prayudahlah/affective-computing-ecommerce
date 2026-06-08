@@ -1,4 +1,4 @@
-FROM docker.io/apache/spark:4.1.1
+FROM docker.io/apache/spark:4.1.2
 
 USER root
 
@@ -9,13 +9,13 @@ RUN pip install --no-cache-dir -r requirements.txt && \
   python3 -c "import nltk; nltk.download('punkt_tab', download_dir='/usr/share/nltk_data', quiet=True); nltk.download('stopwords', download_dir='/usr/share/nltk_data', quiet=True)"
 
 RUN wget -q -P /opt/spark/jars/ \
-  https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.1/spark-sql-kafka-0-10_2.13-4.1.1.jar && \
+  https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.2/spark-sql-kafka-0-10_2.13-4.1.2.jar && \
   wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.1/kafka-clients-3.9.1.jar && \
   wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar && \
   wget -q -P /opt/spark/jars/ \
-  https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.1.1/spark-token-provider-kafka-0-10_2.13-4.1.1.jar
+  https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.1.2/spark-token-provider-kafka-0-10_2.13-4.1.2.jar
 
 RUN wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.13/10.4.0/mongo-spark-connector_2.13-10.4.0.jar && \
