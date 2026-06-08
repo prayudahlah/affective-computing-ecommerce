@@ -35,7 +35,10 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
     env_file: .env
+    volumes:
+      - ./storage/kafka:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 10s
