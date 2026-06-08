@@ -98,7 +98,7 @@ services:
       - dev
 
   spark-master:
-    image: docker.io/apache/spark:4.1.1
+    image: docker.io/apache/spark:4.1.2
     restart: unless-stopped
     ports:
       - ${HOST_IP:-127.0.0.1}:${SPARK_APP_UI_HOST_PORT:-4040}:4040
