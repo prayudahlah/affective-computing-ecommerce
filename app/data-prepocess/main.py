@@ -186,21 +186,9 @@ def pos_tag(tokens):
     return hasil
 
 
-def lemmatize(tokens, pos_tags):
+def stem(tokens):
     stemmer = _get_stemmer()
-    hasil = []
-    for token, (_, pos) in zip(tokens, pos_tags):
-        t = token.lower()
-        t = re.sub(r"(-lah|-kah|-pun|-ku|-mu|-nya)$", "", t)
-        redup_match = re.match(r"^(.+?)[-]?\1$", t)
-        if redup_match:
-            t = redup_match.group(1)
-        if pos == "PUNCT":
-            continue
-        elif pos == "VERB":
-            t = stemmer.stem(t)
-        hasil.append(t)
-    return hasil
+    return [stemmer.stem(t) for t in tokens]
 
 
 def handle_negation(text):
@@ -247,7 +235,7 @@ def full_pipeline(text, slang_dict):
     tokens = tokenize(t)
     tokens = remove_stopwords(tokens)
     pos_tags = pos_tag(tokens)
-    tokens = lemmatize(tokens, pos_tags)
+    tokens = stem(tokens)
     tokens = handle_negation(" ".join(tokens)).split()
     return re.sub(r"\s+", " ", " ".join(tokens)).strip()
 
