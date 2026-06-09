@@ -47,7 +47,7 @@ def _get_stemmer():
 
 def _build_slang_dict():
     paths = [
-        "/app/data-prepocess/colloquial-indonesian-lexicon.csv",
+        "/app/colloquial-indonesian-lexicon.csv",
     ]
     csv_path = next((p for p in paths if os.path.exists(p)), None)
     if csv_path is None:
