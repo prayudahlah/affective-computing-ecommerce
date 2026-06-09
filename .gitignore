@@ -7,6 +7,3 @@ storage/
 cookies.json
 latest_metadata.json
 shoope_rating.csv
-
-# PreProcessor
-app/data-prepocess/tfidf_vectorizer.joblib
