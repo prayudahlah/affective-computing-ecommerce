@@ -291,6 +291,26 @@ services:
       - device_3
       - dev
 
+  telegram-bot:
+    build:
+      context: ./app/telegram-bot
+      dockerfile: Containerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      INFERENCE_DB_HOST: postgres
+      INFERENCE_DB_USER: ${INFERENCE_DB_USER:-postgres}
+      INFERENCE_DB_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
+      INFERENCE_DB_NAME: ${INFERENCE_DB_NAME:-postgres}
+    env_file: .env
+    profiles:
+      - device_3
+      - dev
+
   streamlit:
     build:
       context: ./app/visualization
