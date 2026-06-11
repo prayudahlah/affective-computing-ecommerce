@@ -34,3 +34,17 @@ CREATE INDEX IF NOT EXISTS idx_reviews_rating_star ON reviews(rating_star);
 CREATE INDEX IF NOT EXISTS idx_alerts_alert_type ON alerts(alert_type);
 CREATE INDEX IF NOT EXISTS idx_alerts_triggered_at ON alerts(triggered_at);
 CREATE INDEX IF NOT EXISTS idx_model_metadata_is_active ON model_metadata(is_active);
+
+CREATE OR REPLACE FUNCTION notify_alert_inserted()
+RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('alert_inserted', row_to_json(NEW)::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_alert_notify ON alerts;
+CREATE TRIGGER trg_alert_notify
+    AFTER INSERT ON alerts
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_alert_inserted();
