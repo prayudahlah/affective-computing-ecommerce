@@ -252,6 +252,62 @@ def _emotion_features_row(text):
     )
 
 
+def _discriminative_features_row(text):
+    if not isinstance(text, str):
+        text = str(text) if text else ""
+    words = text.lower().split()
+    demand_words = {"kembalikan", "ganti", "refund", "komplain", "keluhan",
+                    "kembali", "tolong", "mohon", "urus", "klarifikasi", "balas"}
+    n_demands = sum(1 for w in words if w in demand_words)
+    uncertainty_words = {"mungkin", "khawatir", "takut", "was-was", "cemas",
+                         "ragu", "bimbang", "curiga", "sepertinya", "seolah",
+                         "antisipasi", "harap"}
+    n_uncertainty = sum(1 for w in words if w in uncertainty_words)
+    swear_words = {"anjing", "bangsat", "bodoh", "tolol", "jelek", "parah",
+                   "payah", "sampah", "busuk", "brengsek", "persetan",
+                   "keparat", "setan", "sial", "kacau"}
+    n_swear = sum(1 for w in words if w in swear_words)
+    attachment_words = {"cinta", "sayang", "suka", "gemas",
+                        "love", "favorit", "kesayangan", "favorite"}
+    n_attachment = sum(1 for w in words if w in attachment_words)
+    repurchase_words = {"beli lagi", "order lagi", "repeat order", "langganan",
+                        "balik lagi", "pasti beli", "akan beli", "nanti beli",
+                        "rekomendasi", "recommend", "beli disini terus"}
+    n_repurchase = sum(1 for phrase in repurchase_words if phrase in text.lower())
+    transactional_words = {"bagus", "mantap", "ok", "oke", "cocok", "puas",
+                           "sesuai", "recommended", "keren", "mantul",
+                           "top", "good", "nice", "great", "worth"}
+    n_transactional = sum(1 for w in words if w in transactional_words)
+    return (n_demands, n_uncertainty, n_swear, n_attachment, n_repurchase, n_transactional)
+
+
+def _enhanced_features_row(text):
+    if not isinstance(text, str):
+        text = str(text) if text else ""
+    words = text.split()
+    n_words = len(words)
+    avg_word_len = float(sum(len(w) for w in words)) / n_words if n_words > 0 else 0.0
+    intensifiers = {"sangat", "sekali", "banget", "paling", "amat",
+                    "terlalu", "super", "benar", "sungguh", "betul"}
+    n_intensifiers = sum(1 for w in text.lower().split() if w in intensifiers)
+    pos_emojis = {"\U0001f60d", "\U0001f60a", "\u2764", "\U0001f44d",
+                  "\U0001f604", "\U0001f601", "\U0001f970", "\U0001f618",
+                  "\U0001f495", "\U0001f496", "\u2728", "\U0001f4af",
+                  "\U0001f525", "\U0001f44f", "\U0001f929", "\U0001f389"}
+    neg_emojis = {"\U0001f621", "\U0001f620", "\U0001f622", "\U0001f62d",
+                  "\U0001f629", "\U0001f62b", "\U0001f61e", "\U0001f641",
+                  "\U0001f623", "\U0001f616", "\U0001f614", "\U0001f44e",
+                  "\U0001f494"}
+    n_positive_emoji = sum(1 for ch in text if ch in pos_emojis)
+    n_negative_emoji = sum(1 for ch in text if ch in neg_emojis)
+    first_person = {"aku", "saya", "kami", "kit", "gue", "gw", "akuu"}
+    second_person = {"kamu", "anda", "kau", "kakak", "mas", "mbak", "bro", "sis"}
+    n_pronoun_1st = sum(1 for w in text.lower().split() if w in first_person)
+    n_pronoun_2nd = sum(1 for w in text.lower().split() if w in second_person)
+    return (n_words, avg_word_len, n_intensifiers, n_positive_emoji, n_negative_emoji,
+            n_pronoun_1st, n_pronoun_2nd)
+
+
 # ── Main ───────────────────────────────────────────────────────────
 
 
@@ -317,6 +373,29 @@ def main():
         ]
     )
 
+    discriminative_schema = StructType(
+        [
+            StructField("n_demands", IntegerType(), False),
+            StructField("n_uncertainty", IntegerType(), False),
+            StructField("n_swear", IntegerType(), False),
+            StructField("n_attachment", IntegerType(), False),
+            StructField("n_repurchase", IntegerType(), False),
+            StructField("n_transactional", IntegerType(), False),
+        ]
+    )
+
+    enhanced_schema = StructType(
+        [
+            StructField("n_words", IntegerType(), False),
+            StructField("avg_word_len", FloatType(), False),
+            StructField("n_intensifiers", IntegerType(), False),
+            StructField("n_positive_emoji", IntegerType(), False),
+            StructField("n_negative_emoji", IntegerType(), False),
+            StructField("n_pronoun_1st", IntegerType(), False),
+            StructField("n_pronoun_2nd", IntegerType(), False),
+        ]
+    )
+
     vector_item_schema = StructType(
         [
             StructField("i", IntegerType(), False),
@@ -334,6 +413,14 @@ def main():
     @udf(emotion_schema)
     def emotion_udf(text):
         return _emotion_features_row(text)
+
+    @udf(discriminative_schema)
+    def discriminative_udf(text):
+        return _discriminative_features_row(text)
+
+    @udf(enhanced_schema)
+    def enhanced_udf(text):
+        return _enhanced_features_row(text)
 
     @udf(vector_schema)
     def vectorize_udf(text):
@@ -377,6 +464,8 @@ def main():
     processed = (
         parsed.withColumn("review_preprocessed", preprocess_udf(col("review")))
         .withColumn("emotion_features", emotion_udf(col("review")))
+        .withColumn("discriminative_features", discriminative_udf(col("review")))
+        .withColumn("emotion_features_enhanced", enhanced_udf(col("review")))
         .withColumn("review_vectorized", vectorize_udf(col("review_preprocessed")))
         .withColumn("preprocessed_at", current_timestamp())
     )
