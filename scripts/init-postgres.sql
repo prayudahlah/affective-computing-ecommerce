@@ -1,31 +1,37 @@
+-- Schema database PostgreSQL untuk dashboard Streamlit
+
+-- TABEL reviews
 CREATE TABLE IF NOT EXISTS reviews (
     id SERIAL PRIMARY KEY,
     comment_id VARCHAR(255) NOT NULL UNIQUE,
     buyer_username VARCHAR(255),
     product_name VARCHAR(255),
     comment TEXT,
-    rating_star INTEGER CHECK (rating_star >= 1 AND rating_star <= 5),
+    rating_star INT CHECK (rating_star BETWEEN 1 AND 5),
     create_time TIMESTAMP,
-    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    sentiment VARCHAR(20),
-    emotion VARCHAR(50)
+    processed_at TIMESTAMP DEFAULT NOW(),
+    sentiment VARCHAR(10) CHECK (sentiment IN ('Positif', 'Negatif')),
+    emotion VARCHAR(20)
 );
 
+-- TABEL alerts
 CREATE TABLE IF NOT EXISTS alerts (
     id SERIAL PRIMARY KEY,
-    alert_type VARCHAR(50) NOT NULL CHECK (alert_type IN ('rating_drop', 'sentiment_negative')),
-    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    alert_type VARCHAR(20) CHECK (alert_type IN ('rating_drop', 'sentiment_negative')),
+    triggered_at TIMESTAMP DEFAULT NOW(),
     comment TEXT,
-    rating_avg NUMERIC(3,2),
-    review_id INTEGER REFERENCES reviews(id) ON DELETE SET NULL
+    rating_avg DECIMAL(3,2),
+    review_id INT REFERENCES reviews(id) ON DELETE SET NULL
 );
 
+-- TABEL model_metadata
 CREATE TABLE IF NOT EXISTS model_metadata (
     id SERIAL PRIMARY KEY,
-    model_name VARCHAR(255) NOT NULL,
-    f1_score_macro NUMERIC(5,4),
-    trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT FALSE
+    model_name VARCHAR(100),
+    f1_score_macro DECIMAL(5,4),
+    trained_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT FALSE,
+    task_type VARCHAR(20) NOT NULL DEFAULT 'sentiment'
 );
 
 CREATE INDEX IF NOT EXISTS idx_reviews_comment_id ON reviews(comment_id);
