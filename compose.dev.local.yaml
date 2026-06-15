@@ -284,7 +284,7 @@ services:
       - ${INFERENCE_DB_HOST_PORT:-5432}:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${INFERENCE_DB_USER} -d ${INFERENCE_DB_NAME}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
     profiles:
@@ -315,6 +315,16 @@ services:
     build:
       context: ./app/visualization
       dockerfile: Containerfile
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    environment:
+      INFERENCE_DB_USER: ${INFERENCE_DB_USER:-postgres}
+      INFERENCE_DB_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
+      INFERENCE_DB_HOST: postgres
+      INFERENCE_DB_NAME: ${INFERENCE_DB_NAME:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
     profiles:
       - device_4
       - dev
