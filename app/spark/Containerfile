@@ -24,6 +24,8 @@ RUN wget -q -P /opt/spark/jars/ \
   wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-core/5.1.4/mongodb-driver-core-5.1.4.jar && \
   wget -q -P /opt/spark/jars/ \
-  https://repo1.maven.org/maven2/org/mongodb/bson/5.1.4/bson-5.1.4.jar
+  https://repo1.maven.org/maven2/org/mongodb/bson/5.1.4/bson-5.1.4.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar
 
 COPY . .
