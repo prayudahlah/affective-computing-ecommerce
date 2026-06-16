@@ -30,7 +30,8 @@ MONGO_DB = os.getenv("MONGO_DB", "ecommerce")
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "reviews")
 SPARK_MASTER_URL = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/app/data/checkpoint")
-VECTORIZER_PATH = os.getenv("VECTORIZER_PATH", "/app/tfidf_vectorizer.joblib")
+SENTIMENT_VECTORIZER_PATH = os.getenv("SENTIMENT_VECTORIZER_PATH", "/app/sentiment_vectorizer.joblib")
+EMOTION_VECTORIZER_PATH = os.getenv("EMOTION_VECTORIZER_PATH", "/app/emotion_vectorizer.joblib")
 
 # ── Preprocessing ──────────────────────────────────────────────────
 
@@ -337,6 +338,7 @@ def main():
         SparkSession.builder.appName("StreamDataPreprocess")
         .master(SPARK_MASTER_URL)
         .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.cores.max", "2")
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("WARN")
@@ -347,18 +349,34 @@ def main():
     slang_dict_bc = spark.sparkContext.broadcast(slang_dict)
     logger.info("[BCAST] Slang dict broadcast (%d entries)", len(slang_dict))
 
-    # Broadcast: TF-IDF vectorizer (optional)
-    vectorizer_bc = None
-    if os.path.exists(VECTORIZER_PATH):
-        vec = joblib.load(VECTORIZER_PATH)
-        vectorizer_bc = spark.sparkContext.broadcast(vec)
+    # Broadcast: TF-IDF vectorizers
+    sentiment_vectorizer_bc = None
+    if os.path.exists(SENTIMENT_VECTORIZER_PATH):
+        vec = joblib.load(SENTIMENT_VECTORIZER_PATH)
+        sentiment_vectorizer_bc = spark.sparkContext.broadcast(vec)
         logger.info(
-            "[BCAST] Vectorizer broadcast (max_features=%s)",
+            "[BCAST] Sentiment vectorizer (max_features=%s)",
             getattr(vec, "max_features", "?"),
         )
     else:
         logger.warning(
-            "Vectorizer not found at %s — vectorization disabled", VECTORIZER_PATH
+            "Sentiment vectorizer not found at %s — disabled",
+            SENTIMENT_VECTORIZER_PATH,
+        )
+
+    emotion_vectorizer_bc = None
+    if os.path.exists(EMOTION_VECTORIZER_PATH):
+        vec = joblib.load(EMOTION_VECTORIZER_PATH)
+        emotion_vectorizer_bc = spark.sparkContext.broadcast(vec)
+        logger.info(
+            "[BCAST] Emotion vectorizer (max_features=%s, ngram=%s)",
+            getattr(vec, "max_features", "?"),
+            getattr(vec, "ngram_range", "?"),
+        )
+    else:
+        logger.warning(
+            "Emotion vectorizer not found at %s — disabled",
+            EMOTION_VECTORIZER_PATH,
         )
 
     # ── UDF schemas ────────────────────────────────────────────────
@@ -423,10 +441,18 @@ def main():
         return _enhanced_features_row(text)
 
     @udf(vector_schema)
-    def vectorize_udf(text):
-        if vectorizer_bc is None or not text or not text.strip():
+    def sentiment_vectorize_udf(text):
+        if sentiment_vectorizer_bc is None or not text or not text.strip():
             return []
-        vec = vectorizer_bc.value.transform([text])
+        vec = sentiment_vectorizer_bc.value.transform([text])
+        row = vec[0]
+        return [{"i": int(c), "v": float(v)} for c, v in zip(row.indices, row.data)]
+
+    @udf(vector_schema)
+    def emotion_vectorize_udf(text):
+        if emotion_vectorizer_bc is None or not text or not text.strip():
+            return []
+        vec = emotion_vectorizer_bc.value.transform([text])
         row = vec[0]
         return [{"i": int(c), "v": float(v)} for c, v in zip(row.indices, row.data)]
 
@@ -466,7 +492,8 @@ def main():
         .withColumn("emotion_features", emotion_udf(col("review")))
         .withColumn("discriminative_features", discriminative_udf(col("review")))
         .withColumn("emotion_features_enhanced", enhanced_udf(col("review")))
-        .withColumn("review_vectorized", vectorize_udf(col("review_preprocessed")))
+        .withColumn("sentiment_vectorized", sentiment_vectorize_udf(col("review_preprocessed")))
+        .withColumn("emotion_vectorized", emotion_vectorize_udf(col("review_preprocessed")))
         .withColumn("preprocessed_at", current_timestamp())
     )
 
@@ -486,16 +513,15 @@ def main():
             MONGO_DB,
             MONGO_COLLECTION,
         )
+        import hashlib
         client = pymongo.MongoClient(MONGO_URI)
         try:
-            result = client[MONGO_DB][MONGO_COLLECTION].insert_many(
-                records, ordered=False
-            )
-            logger.info(
-                "[EPOCH %d] Inserted %d documents",
-                epoch_id,
-                len(result.inserted_ids),
-            )
+            coll = client[MONGO_DB][MONGO_COLLECTION]
+            for record in records:
+                key = f"{record.get('ctime')}_{record.get('nama pengguna')}"
+                record["_id"] = hashlib.md5(key.encode()).hexdigest()
+                coll.replace_one({"_id": record["_id"]}, record, upsert=True)
+            logger.info("[EPOCH %d] Upserted %d documents", epoch_id, len(records))
         except Exception as e:
             logger.error("[EPOCH %d] MongoDB write failed: %s", epoch_id, e)
             raise
