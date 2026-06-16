@@ -209,7 +209,7 @@ services:
     volumes:
       - ./storage/cdc/offset:/offset:z
     environment:
-      BOOTSTRAP_SERVERS: kafka:${KAFKA_HOST_PORT:-9092}
+      BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: debezium-cdc-group
       CONFIG_STORAGE_TOPIC: debezium.configs
       OFFSET_STORAGE_TOPIC: debezium.offsets
@@ -244,12 +244,27 @@ services:
       dockerfile: Containerfile
     restart: unless-stopped
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
+      spark-master:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      debezium-register:
+        condition: service_completed_successfully
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:${KAFKA_HOST_PORT:-9092}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: cdc.mongodb.ecommerce.reviews
       KAFKA_GROUP_ID: ml-inference-group
+      SPARK_MASTER_URL: spark://spark-master:7077
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/${INFERENCE_DB_NAME:-postgres}
+      POSTGRES_USER: ${INFERENCE_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
+      MODEL_DIR: /app/models
+      CHECKPOINT_DIR: /app/data/checkpoint
     env_file: .env
+    volumes:
+      - ./storage/inference:/app/data
     profiles:
       - device_3
       - dev
@@ -259,6 +274,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./storage/postgres:/var/lib/postgresql:z
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:z
     environment:
       POSTGRES_USER: ${INFERENCE_DB_USER:-postgres}
       POSTGRES_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
