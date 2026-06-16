@@ -1,9 +1,27 @@
-FROM docker.io/python:3.12.13-alpine3.23
+FROM docker.io/apache/spark:4.1.2
+
+USER root
 
 WORKDIR /app
 
 COPY requirements.txt .
 
-COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "main.py"]
+RUN wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.2/spark-sql-kafka-0-10_2.13-4.1.2.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.1/kafka-clients-3.9.1.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.1.2/spark-token-provider-kafka-0-10_2.13-4.1.2.jar
+
+COPY . /app/models/
+
+RUN wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar
+
+RUN mkdir -p /app/data
+
+CMD /opt/spark/bin/spark-submit --master ${SPARK_MASTER_URL:-local[*]} /app/models/main.py
