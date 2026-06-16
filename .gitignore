@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 storage/
+.idea
 
 # Scraper
 cookies.json
