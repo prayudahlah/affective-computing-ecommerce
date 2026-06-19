@@ -15,7 +15,7 @@ services:
       DATA_DIR: /app/data
     env_file: .env
     volumes:
-      - ./storage/scraper:/app/data
+      - data-poller-data:/app/data
     profiles:
       - device_1
       - dev
@@ -42,7 +42,7 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     env_file: .env
     volumes:
-      - ./storage/kafka:/var/lib/kafka/data
+      - kafka-data:/var/lib/kafka/data
     healthcheck:
       test:
         [
@@ -108,7 +108,7 @@ services:
       CHECKPOINT_DIR: /app/data/checkpoint
     env_file: .env
     volumes:
-      - ./storage/preprocess:/app/data
+      - preprocess-data:/app/data
     profiles:
       - device_2
       - dev
@@ -154,7 +154,7 @@ services:
     environment:
       GLIBC_TUNABLES: glibc.pthread.rseq=1
     volumes:
-      - ./storage/mongodb:/data/db:z
+      - mongodb-data:/data/db
     command: ["--replSet", "rs0"]
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
@@ -207,7 +207,7 @@ services:
     ports:
       - 8083:8083
     volumes:
-      - ./storage/cdc/offset:/offset:z
+      - cdc-offset-data:/offset
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: debezium-cdc-group
@@ -264,7 +264,7 @@ services:
       CHECKPOINT_DIR: /app/data/checkpoint
     env_file: .env
     volumes:
-      - ./storage/inference:/app/data
+      - inference-data:/app/data
     profiles:
       - device_3
       - dev
@@ -273,7 +273,7 @@ services:
     image: docker.io/postgres:18.3-alpine3.23
     restart: unless-stopped
     volumes:
-      - ./storage/postgres:/var/lib/postgresql:z
+      - postgres-data:/var/lib/postgresql
       - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:z
     environment:
       POSTGRES_USER: ${INFERENCE_DB_USER:-postgres}
@@ -318,3 +318,12 @@ services:
     profiles:
       - device_4
       - dev
+
+volumes:
+  kafka-data:
+  mongodb-data:
+  postgres-data:
+  cdc-offset-data:
+  data-poller-data:
+  preprocess-data:
+  inference-data:
