@@ -81,9 +81,9 @@ services:
       - device_1
       - dev
 
-  data-prepocess:
+  data-preprocess:
     build:
-      context: ./app/data-prepocess
+      context: ./app/data-preprocess
       dockerfile: Containerfile
     restart: unless-stopped
     depends_on:

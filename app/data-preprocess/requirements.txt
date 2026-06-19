@@ -1,0 +1,8 @@
+pandas==2.3.3
+nltk==3.9.4
+emoji==2.15.0
+Sastrawi==1.0.1
+scikit-learn==1.7.2
+joblib==1.5.3
+pyspark
+pymongo==4.17.0
