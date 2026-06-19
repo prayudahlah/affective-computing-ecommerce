@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     rating_star INT CHECK (rating_star BETWEEN 1 AND 5),
     create_time TIMESTAMP,
     processed_at TIMESTAMP DEFAULT NOW(),
-    sentiment VARCHAR(10) CHECK (sentiment IN ('Positif', 'Negatif')),
+    sentiment VARCHAR(10) CHECK (sentiment IS NULL OR sentiment IN ('Positive', 'Negative')),
     emotion VARCHAR(20)
 );
 
