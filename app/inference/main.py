@@ -190,7 +190,6 @@ def main():
         .option("startingOffsets", "earliest")
         .option("failOnDataLoss", "false")
         .option("maxOffsetsPerTrigger", "100")
-        .option("minOffsetsPerTrigger", "1")
         .load()
     )
 
