@@ -9,6 +9,7 @@ from components import (
     inject_css,
     render_header,
     render_kpi_cards,
+    render_model_cards,
     render_time_series,
     render_sentiment_emotion,
     render_top_products,
@@ -112,9 +113,9 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
 
     st.pills(
         "Sentimen",
-        ["Positif", "Negatif"],
+        ["Positive", "Negative"],
         selection_mode="multi",
-        default=st.session_state.get("filter_sentiment", ["Positif", "Negatif"]),
+        default=st.session_state.get("filter_sentiment", ["Positive", "Negative"]),
         key="filter_sentiment",
     )
 
@@ -127,13 +128,13 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
         st.session_state["pending_date_from"] = default_from
         st.session_state["pending_date_to"] = default_to
         st.session_state["pending_product"] = ALL_PRODUCT
-        st.session_state["pending_sentiment"] = ["Positif", "Negatif"]
+        st.session_state["pending_sentiment"] = ["Positive", "Negative"]
         st.session_state["review_page"] = 0
         st.session_state["alert_page"] = 0
         st.rerun()
 
 sel_prod = st.session_state.get("filter_product", ALL_PRODUCT)
-sel_sent = st.session_state.get("filter_sentiment", ["Positif", "Negatif"])
+sel_sent = st.session_state.get("filter_sentiment", ["Positive", "Negative"])
 
 filters = {
     "date_from": st.session_state.get("filter_date_from", default_from),
@@ -158,6 +159,8 @@ st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 metrics = get_kpi_metrics(filters)
 render_kpi_cards(metrics)
+
+render_model_cards(metrics)
 
 st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
 
