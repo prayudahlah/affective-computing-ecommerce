@@ -3,7 +3,6 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-# Koneksi
 DB_USER     = os.getenv("INFERENCE_DB_USER",     "postgres")
 DB_PASSWORD = os.getenv("INFERENCE_DB_PASSWORD", "postgres")
 DB_HOST     = os.getenv("INFERENCE_DB_HOST",     "postgres")
@@ -13,7 +12,6 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 engine = create_engine(DATABASE_URL)
 
 
-# Helper
 def _build_review_filter(filters: dict) -> tuple[str, dict]:
     conditions = []
     params = {}
@@ -54,8 +52,7 @@ def _build_alert_filter(filters: dict) -> tuple[str, dict]:
     return clause, params
 
 
-# KPI Metrics
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def get_kpi_metrics(filters: dict) -> dict:
     where, params = _build_review_filter(filters)
     alert_where, alert_params = _build_alert_filter(filters)
@@ -99,8 +96,8 @@ def get_kpi_metrics(filters: dict) -> dict:
         SELECT
             (SELECT COUNT(*) FROM today_window)                                        AS total_today,
             (SELECT COUNT(*) FROM yesterday_window)                                    AS total_yesterday,
-            (SELECT COUNT(*) FROM today_window WHERE sentiment = 'Negatif')            AS neg_today,
-            (SELECT COUNT(*) FROM yesterday_window WHERE sentiment = 'Negatif')        AS neg_yesterday,
+            (SELECT COUNT(*) FROM today_window WHERE sentiment = 'Negative')            AS neg_today,
+            (SELECT COUNT(*) FROM yesterday_window WHERE sentiment = 'Negative')        AS neg_yesterday,
             (SELECT avg_now  FROM last_10min)                                          AS avg_rating_now,
             (SELECT avg_prev FROM prev_10min)                                          AS avg_rating_prev,
             (SELECT cnt FROM alerts_filtered)                                          AS alert_count,
@@ -126,8 +123,8 @@ def get_kpi_metrics(filters: dict) -> dict:
     return {
         "total_today":         total_today,
         "total_delta":         total_today - total_yesterday,
-        "pct_negatif":         pct_neg_today,
-        "pct_negatif_delta":   round(pct_neg_today - pct_neg_yesterday, 1),
+        "pct_negative":        pct_neg_today,
+        "pct_negative_delta":  round(pct_neg_today - pct_neg_yesterday, 1),
         "avg_rating_now":      avg_now,
         "avg_rating_delta":    round(avg_now - avg_prev, 2) if avg_prev is not None else None,
         "alert_count":         alert_count,
@@ -136,8 +133,7 @@ def get_kpi_metrics(filters: dict) -> dict:
     }
 
 
-# Time Series Rating per 10 menit
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def get_time_series_rating(filters: dict) -> pd.DataFrame:
     where, params = _build_review_filter(filters)
     sql = f"""
@@ -159,8 +155,7 @@ def get_time_series_rating(filters: dict) -> pd.DataFrame:
     return df
 
 
-# Distribusi Sentimen
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def get_sentiment_distribution(filters: dict) -> pd.DataFrame:
     where, params = _build_review_filter(filters)
     sql = f"""
@@ -177,8 +172,8 @@ def get_sentiment_distribution(filters: dict) -> pd.DataFrame:
     return df
 
 
-# Distribusi Emosi
-@st.cache_data(ttl=5)
+
+@st.cache_data(ttl=10)
 def get_emotion_distribution(filters: dict) -> pd.DataFrame:
     where, params = _build_review_filter(filters)
     sql = f"""
@@ -196,8 +191,8 @@ def get_emotion_distribution(filters: dict) -> pd.DataFrame:
     return df
 
 
-# Top 5 produk rating terendah
-@st.cache_data(ttl=5)
+
+@st.cache_data(ttl=10)
 def get_top_products_by_rating(filters: dict, limit: int = 5) -> pd.DataFrame:
     where, params = _build_review_filter(filters)
     sql = f"""
@@ -205,7 +200,7 @@ def get_top_products_by_rating(filters: dict, limit: int = 5) -> pd.DataFrame:
             product_name,
             ROUND(AVG(rating_star)::numeric, 2) AS avg_rating,
             COUNT(*)                             AS total_reviews,
-            COUNT(*) FILTER (WHERE sentiment = 'Negatif') AS neg_count
+            COUNT(*) FILTER (WHERE sentiment = 'Negative') AS neg_count
         FROM reviews
         {where}
         GROUP BY product_name
@@ -222,7 +217,7 @@ def get_top_products_by_rating(filters: dict, limit: int = 5) -> pd.DataFrame:
     return df
 
 
-# Tabel Ulasan (paginasi)
+
 def get_reviews_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFrame:
     where, params = _build_review_filter(filters)
     params["limit"]  = limit
@@ -249,7 +244,7 @@ def get_total_reviews_count(filters: dict) -> int:
         return conn.execute(text(sql), params).scalar() or 0
 
 
-# Tabel Alert (paginasi)
+
 def get_alerts_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFrame:
     where, params = _build_alert_filter(filters)
     params["limit"]  = limit
