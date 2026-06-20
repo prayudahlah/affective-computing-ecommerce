@@ -5,11 +5,10 @@ import streamlit as st
 from config import (
     BG_BASE, BG_SURFACE, BG_ELEVATED, BG_BORDER,
     ASUS_BLUE, ASUS_BLUE_DIM,
-    ACCENT_RED, ACCENT_RED_DIM, ACCENT_PINK, ACCENT_PINK_DIM,
-    ACCENT_PURPLE,
+    ACCENT_RED, ACCENT_RED_DIM, ACCENT_PINK,
+    ACCENT_PURPLE, ACCENT_PURPLE_DIM,
     TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
-    ALERT_TYPE_LABELS, SENTIMENT_COLORS, EMOTION_COLOR_SCALE,
-    MODEL_TASK_LABELS, MODEL_TASK_COLORS,
+    ALERT_TYPE_LABELS, SENTIMENT_COLORS, EMOTION_COLORS,
     RATING_THRESHOLD,
 )
 
@@ -43,12 +42,10 @@ def _chart_cfg(chart, height=320):
     )
 
 
-# CSS global
 def inject_css():
     st.markdown(
         f"""
         <style>
-        /* ── Base ── */
         html, body,
         [data-testid="stAppViewContainer"],
         [data-testid="stMain"],
@@ -60,7 +57,6 @@ def inject_css():
             padding-top: 1.5rem;
         }}
 
-        /* ── Sidebar ── */
         [data-testid="stSidebar"] {{
             background-color: {BG_SURFACE} !important;
             border-right: 1px solid {BG_BORDER};
@@ -68,7 +64,6 @@ def inject_css():
         [data-testid="stSidebar"] * {{
             color: {TEXT_PRIMARY} !important;
         }}
-        /* Input di sidebar */
         [data-testid="stSidebar"] input,
         [data-testid="stSidebar"] .stDateInput input {{
             background: {BG_ELEVATED} !important;
@@ -84,7 +79,6 @@ def inject_css():
             color: {TEXT_PRIMARY} !important;
         }}
 
-        /* Tombol sidebar */
         [data-testid="stSidebar"] .stButton > button {{
             background: {ASUS_BLUE} !important;
             color: #fff !important;
@@ -99,7 +93,6 @@ def inject_css():
             background: #1568B0 !important;
         }}
 
-        /* ── KPI Card ── */
         .kpi-card {{
             background: {BG_SURFACE};
             border: 1px solid {BG_BORDER};
@@ -137,7 +130,6 @@ def inject_css():
         .kpi-delta.down {{ color: {ACCENT_RED}; }}
         .kpi-delta.flat {{ color: {TEXT_MUTED}; }}
 
-        /* ── Section header ── */
         .section-header {{
             font-size: 0.72rem;
             font-weight: 700;
@@ -150,14 +142,12 @@ def inject_css():
             display: inline-block;
         }}
 
-        /* ── Divider ── */
         hr.section-divider {{
             border: none;
             border-top: 1px solid {BG_BORDER};
             margin: 1.8rem 0;
         }}
 
-        /* ── Pagination ── */
         .pagination-info {{
             font-size: 0.78rem;
             color: {TEXT_SECONDARY};
@@ -165,7 +155,7 @@ def inject_css():
             padding-top: 0.4rem;
         }}
 
-        /* ── Badge sentimen ── */
+        
         .badge {{
             display: inline-block;
             padding: 2px 10px;
@@ -174,27 +164,84 @@ def inject_css():
             font-weight: 700;
             letter-spacing: 0.04em;
         }}
-        .badge-positif {{
+        .badge-Positive {{
             background: {ASUS_BLUE_DIM};
             color: {ASUS_BLUE};
         }}
-        .badge-negatif {{
+        .badge-Negative {{
             background: {ACCENT_RED_DIM};
             color: {ACCENT_RED};
         }}
 
-        /* ── Dataframe ── */
-        .stDataFrame {{
-            border: 1px solid {BG_BORDER} !important;
-            border-radius: 8px;
-            overflow: hidden;
+
+        .alert-dot {{
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
         }}
-        /* override iframe bg supaya konsisten */
-        .stDataFrame iframe {{
-            background: {BG_SURFACE};
+        .alert-dot.rating_drop {{
+            background: {ACCENT_PURPLE};
+        }}
+        .alert-dot.sentiment_negative {{
+            background: {ACCENT_RED};
         }}
 
-        /* ── Pagination tombol ── */
+
+        .review-row {{
+            background: {BG_SURFACE};
+            border: 1px solid {BG_BORDER};
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.4rem;
+        }}
+        .review-row.positive {{
+            border-left: 3px solid {ASUS_BLUE};
+        }}
+        .review-row.negative {{
+            border-left: 3px solid {ACCENT_RED};
+        }}
+
+
+        .section-header.model {{
+            border-bottom-color: {ACCENT_PINK};
+        }}
+
+
+        .model-card {{
+            background: {BG_ELEVATED};
+            border: 1px solid {BG_BORDER};
+            border-top: 3px solid {ACCENT_PINK};
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            min-height: 90px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }}
+        .model-card.sentiment {{
+            border-top-color: {ASUS_BLUE};
+        }}
+        .model-card.emotion {{
+            border-top-color: {ACCENT_PINK};
+        }}
+        .model-label {{
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: {TEXT_SECONDARY};
+            margin-bottom: 0.25rem;
+        }}
+        .model-value {{
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: {TEXT_PRIMARY};
+            line-height: 1.1;
+        }}
+
+
         .stButton > button {{
             background: {BG_ELEVATED};
             color: {TEXT_PRIMARY};
@@ -214,7 +261,6 @@ def inject_css():
     )
 
 
-# Header
 def render_header():
     st.markdown(
         f"""
@@ -237,7 +283,6 @@ def render_header():
     )
 
 
-# KPI Cards
 def _delta_html(value, suffix="", invert=False):
     if value is None:
         return f'<span class="kpi-delta flat">— tidak ada data sebelumnya</span>'
@@ -249,42 +294,10 @@ def _delta_html(value, suffix="", invert=False):
     return f'<span class="kpi-delta {cls}">{arrow} {sign}{value}{suffix} vs kemarin</span>'
 
 
-def _f1_card(f1_val, task_key):
-    label = MODEL_TASK_LABELS.get(task_key, task_key)
-    color = MODEL_TASK_COLORS.get(task_key, ASUS_BLUE)
-    val = f"{f1_val:.4f}" if f1_val is not None else "—"
-    return f"""
-        <div class="kpi-card" style="border-left-color:{color};">
-            <div class="kpi-label">{label}</div>
-            <div class="kpi-value">{val}</div>
-        </div>
-    """
-
-
 def render_kpi_cards(metrics: dict):
     st.markdown('<div class="section-header">Ringkasan</div>', unsafe_allow_html=True)
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
 
-    cards = [
-        (c1, "Total Ulasan Hari Ini",
-         str(metrics["total_today"]),
-         _delta_html(metrics["total_delta"]),
-         False),
-        (c2, "Sentimen Negatif Hari Ini",
-         f"{metrics['pct_negatif']:.1f}%",
-         _delta_html(metrics["pct_negatif_delta"], suffix="%", invert=True),
-         True),
-        (c3, "Rata-rata Rating (10 mnt)",
-         f"{metrics['avg_rating_now']:.2f}" if metrics['avg_rating_now'] is not None else "—",
-         _delta_html(metrics["avg_rating_delta"]),
-         False),
-        (c4, "Alert Terkirim",
-         str(metrics["alert_count"]),
-         "",
-         True),
-    ]
-
-    for col, label, value, delta_html, is_danger in cards:
+    def _card(label, value, delta_html, is_danger, col):
         cls = "kpi-card danger" if is_danger else "kpi-card"
         with col:
             st.markdown(
@@ -298,15 +311,47 @@ def render_kpi_cards(metrics: dict):
                 unsafe_allow_html=True,
             )
 
-    with c5:
-        st.markdown(_f1_card(metrics.get("f1_sentiment"), "sentiment"),
-                    unsafe_allow_html=True)
-    with c6:
-        st.markdown(_f1_card(metrics.get("f1_emotion"), "emotion"),
-                    unsafe_allow_html=True)
+    row1 = st.columns(4)
+    _card("Total Ulasan Hari Ini", str(metrics["total_today"]),
+          _delta_html(metrics["total_delta"]), False, row1[0])
+    _card("Sentimen Negatif Hari Ini",
+          f"{metrics['pct_negative']:.1f}%",
+          _delta_html(metrics["pct_negative_delta"], suffix="%", invert=True),
+          True, row1[1])
+    _card("Rata-rata Rating (10 mnt)",
+          f"{metrics['avg_rating_now']:.2f}" if metrics['avg_rating_now'] is not None else "—",
+          _delta_html(metrics["avg_rating_delta"]),
+          False, row1[2])
+    _card("Alert Terkirim", str(metrics["alert_count"]), "", True, row1[3])
 
 
-# Time Series
+def render_model_cards(metrics: dict):
+    st.markdown(
+        f'<div class="section-header model">Akurasi Model</div>',
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3, c4 = st.columns(4)
+    sent_val = f"{metrics.get('f1_sentiment'):.4f}" if metrics.get('f1_sentiment') is not None else "—"
+    emo_val  = f"{metrics.get('f1_emotion'):.4f}" if metrics.get('f1_emotion') is not None else "—"
+
+    with c1:
+        st.markdown(
+            f"""<div class="model-card sentiment">
+                <div class="model-label">F1 Sentimen</div>
+                <div class="model-value">{sent_val}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f"""<div class="model-card emotion">
+                <div class="model-label">F1 Emosi</div>
+                <div class="model-value">{emo_val}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+
 def render_time_series(df: pd.DataFrame):
     st.markdown('<div class="section-header">Rata-rata Rating per 10 Menit</div>',
                 unsafe_allow_html=True)
@@ -317,7 +362,14 @@ def render_time_series(df: pd.DataFrame):
         try:
             df["bucket"] = pd.to_datetime(df["bucket"])
 
-            chart = alt.Chart(df).mark_line(
+            area = alt.Chart(df).mark_area(
+                color=ASUS_BLUE, opacity=0.08, interpolate="monotone",
+            ).encode(
+                x=alt.X("bucket:T"),
+                y=alt.Y("avg_rating:Q", scale=alt.Scale(domain=[1, 5])),
+                y2=alt.Y2(value=1),
+            )
+            line = alt.Chart(df).mark_line(
                 color=ASUS_BLUE, strokeWidth=2.5, interpolate="monotone",
                 point=alt.OverlayMarkDef(color=ASUS_BLUE, size=55, opacity=0.9),
             ).encode(
@@ -331,13 +383,12 @@ def render_time_series(df: pd.DataFrame):
                 ],
             )
 
-            chart = _chart_cfg(chart, height=320)
+            chart = _chart_cfg(alt.layer(area, line), height=320)
             st.altair_chart(chart, use_container_width=True, theme=None)
         except Exception as e:
             st.error(f"Gagal merender grafik: {e}")
 
 
-# Distribusi Sentimen + Emosi
 def render_sentiment_emotion(df_sent: pd.DataFrame, df_emo: pd.DataFrame):
     col_l, col_r = st.columns(2, gap="large")
 
@@ -378,6 +429,8 @@ def render_sentiment_emotion(df_sent: pd.DataFrame, df_emo: pd.DataFrame):
         if df_emo.empty:
             st.info("Tidak ada data.")
         else:
+            emo_domain = list(EMOTION_COLORS.keys())
+            emo_range  = list(EMOTION_COLORS.values())
             bar = (
                 alt.Chart(df_emo)
                 .mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
@@ -387,7 +440,7 @@ def render_sentiment_emotion(df_sent: pd.DataFrame, df_emo: pd.DataFrame):
                     y=alt.Y("emotion:N", sort="-x", title=None),
                     color=alt.Color(
                         "emotion:N",
-                        scale=alt.Scale(range=EMOTION_COLOR_SCALE),
+                        scale=alt.Scale(domain=emo_domain, range=emo_range),
                         legend=None,
                     ),
                     tooltip=[
@@ -403,7 +456,6 @@ def render_sentiment_emotion(df_sent: pd.DataFrame, df_emo: pd.DataFrame):
             )
 
 
-# Top 5 Produk Rating Terendah
 def render_top_products(df: pd.DataFrame):
     st.markdown('<div class="section-header">Top 5 Produk — Rating Terendah</div>',
                 unsafe_allow_html=True)
@@ -452,7 +504,6 @@ def render_top_products(df: pd.DataFrame):
         )
 
 
-# Tabel Ulasan
 def render_reviews_table(df: pd.DataFrame, page: int, total: int, page_size: int):
     st.markdown('<div class="section-header">Ulasan Terbaru</div>',
                 unsafe_allow_html=True)
@@ -463,19 +514,44 @@ def render_reviews_table(df: pd.DataFrame, page: int, total: int, page_size: int
 
     df = df.copy()
     df["create_time"] = pd.to_datetime(df["create_time"]).dt.strftime("%Y-%m-%d %H:%M")
-    df = df.rename(columns={
-        "create_time":  "Waktu",
-        "product_name": "Produk",
-        "comment":      "Teks Ulasan",
-        "rating_star":  "Rating",
-        "sentiment":    "Sentimen",
-        "emotion":      "Emosi",
-    })
-    st.dataframe(
-        df[["Waktu", "Produk", "Teks Ulasan", "Rating", "Sentimen", "Emosi"]],
-        use_container_width=True,
-        hide_index=True,
-    )
+
+    for _, row in df.iterrows():
+        sent_class = row["sentiment"].lower()
+        badge = f'<span class="badge badge-{row["sentiment"]}">{row["sentiment"]}</span>'
+        stars = "★" * row["rating_star"] + "☆" * (5 - row["rating_star"])
+        comment_trunc = (row["comment"][:80] + "…") if len(row["comment"]) > 80 else row["comment"]
+
+        st.markdown(
+            f"""
+            <div class="review-row {sent_class}">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.82rem;font-weight:600;color:{TEXT_PRIMARY};">
+                            {row["product_name"]}
+                            <span style="font-size:0.7rem;color:{TEXT_MUTED};margin-left:8px;">
+                                {row["create_time"]}
+                            </span>
+                        </div>
+                        <div style="font-size:0.78rem;color:{TEXT_SECONDARY};margin-top:3px;">
+                            {comment_trunc}
+                        </div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;min-width:100px;">
+                        <div style="font-size:0.8rem;color:{TEXT_SECONDARY};letter-spacing:1px;">
+                            {stars}
+                        </div>
+                        <div style="margin-top:3px;">
+                            {badge}
+                            <span class="badge" style="background:{BG_ELEVATED};color:{TEXT_SECONDARY};margin-left:4px;">
+                                {row["emotion"]}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     total_pages = max(1, (total + page_size - 1) // page_size)
     info_col, prev_col, next_col = st.columns([4, 1, 1])
@@ -486,16 +562,15 @@ def render_reviews_table(df: pd.DataFrame, page: int, total: int, page_size: int
             unsafe_allow_html=True,
         )
     with prev_col:
-        if st.button("<", key="prev_review", disabled=(page == 0), use_container_width=True):
+        if st.button("◀", key="prev_review", disabled=(page == 0), use_container_width=True):
             st.session_state.review_page = page - 1
             st.rerun()
     with next_col:
-        if st.button(">", key="next_review", disabled=(page >= total_pages - 1), use_container_width=True):
+        if st.button("▶", key="next_review", disabled=(page >= total_pages - 1), use_container_width=True):
             st.session_state.review_page = page + 1
             st.rerun()
 
 
-# Tabel Alert
 def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int):
     st.markdown('<div class="section-header">Riwayat Alert</div>',
                 unsafe_allow_html=True)
@@ -506,17 +581,42 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
 
     df = df.copy()
     df["triggered_at"] = pd.to_datetime(df["triggered_at"]).dt.strftime("%Y-%m-%d %H:%M")
-    df["alert_type"]   = df["alert_type"].map(lambda t: ALERT_TYPE_LABELS.get(t, t))
     df["rating_avg"]   = df["rating_avg"].apply(
         lambda x: f"{float(x):.2f}" if pd.notna(x) else "—"
     )
-    df = df.rename(columns={
-        "triggered_at": "Waktu",
-        "alert_type":   "Tipe Alert",
-        "comment":      "Isi Komentar",
-        "rating_avg":   "Rata-rata Rating",
-    })
-    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    for _, row in df.iterrows():
+        alert_label = ALERT_TYPE_LABELS.get(row["alert_type"], row["alert_type"])
+        dot = f'<span class="alert-dot {row["alert_type"]}"></span>'
+        comment_trunc = (row["comment"][:80] + "…") if len(row["comment"]) > 80 else row["comment"]
+        is_rating = row["alert_type"] == "rating_drop"
+        accent = ACCENT_PURPLE if is_rating else ACCENT_RED
+
+        st.markdown(
+            f"""
+            <div class="review-row" style="border-left-color:{accent};">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.82rem;font-weight:600;color:{TEXT_PRIMARY};">
+                            {dot}{alert_label}
+                            <span style="font-size:0.7rem;color:{TEXT_MUTED};margin-left:8px;">
+                                {row["triggered_at"]}
+                            </span>
+                        </div>
+                        <div style="font-size:0.78rem;color:{TEXT_SECONDARY};margin-top:3px;">
+                            {comment_trunc}
+                        </div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        <span style="font-size:0.9rem;font-weight:700;color:{accent};">
+                            ⌀ {row["rating_avg"]}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     total_pages = max(1, (total + page_size - 1) // page_size)
     info_col, prev_col, next_col = st.columns([4, 1, 1])
@@ -527,10 +627,10 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
             unsafe_allow_html=True,
         )
     with prev_col:
-        if st.button("<", key="prev_alert", disabled=(page == 0), use_container_width=True):
+        if st.button("◀", key="prev_alert", disabled=(page == 0), use_container_width=True):
             st.session_state.alert_page = page - 1
             st.rerun()
     with next_col:
-        if st.button(">", key="next_alert", disabled=(page >= total_pages - 1), use_container_width=True):
+        if st.button("▶", key="next_alert", disabled=(page >= total_pages - 1), use_container_width=True):
             st.session_state.alert_page = page + 1
             st.rerun()
