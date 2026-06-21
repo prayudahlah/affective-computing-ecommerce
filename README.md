@@ -27,6 +27,25 @@ Variabel yang perlu diperhatikan:
 | `SCRAPE_INTERVAL` | Jeda antar request scraping (detik), default `10` |
 | `MONGO_USER` / `MONGO_PASSWORD` | Kredensial MongoDB |
 | `INFERENCE_DB_USER` / `INFERENCE_DB_PASSWORD` | Kredensial PostgreSQL |
+| `TELEGRAM_BOT_TOKEN` | Token bot Telegram dari @BotFather |
+| `TELEGRAM_CHAT_ID` | ID chat tujuan alert Telegram |
+
+### 2.5. Setup Telegram Bot (Opsional)
+
+Bot otomatis mengirim ringkasan alert tiap 10 menit ke Telegram.
+
+```bash
+# Dapatkan token dari @BotFather di Telegram, lalu isi di .env
+TELEGRAM_BOT_TOKEN=7234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
+TELEGRAM_CHAT_ID=5519545800
+```
+
+Cara dapat `TELEGRAM_CHAT_ID`:
+1. Kirim pesan apa saja ke bot Telegram yang sudah dibuat
+2. Buka: `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getUpdates`
+3. Cari `chat.id` di response JSON
+
+**Catatan:** File `.env` sudah di `.gitignore`, token tidak akan ikut terpush ke repository.
 
 ### 3. Jalankan semua container
 
