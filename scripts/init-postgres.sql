@@ -47,6 +47,7 @@ VALUES
     ('emotion_v1',   0.67,   '2026-06-20', TRUE, 'emotion')
 ON CONFLICT DO NOTHING;
 
+-- Fungsi dan trigger untuk notifikasi alert ke Telegram (via pg_notify)
 CREATE OR REPLACE FUNCTION notify_alert_inserted()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -60,3 +61,27 @@ CREATE TRIGGER trg_alert_notify
     AFTER INSERT ON alerts
     FOR EACH ROW
     EXECUTE FUNCTION notify_alert_inserted();
+
+-- Fungsi dan trigger untuk auto-insert ke alerts saat review dengan rating < 4 atau sentimen negatif
+CREATE OR REPLACE FUNCTION check_review_alert()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.rating_star < 4 THEN
+        INSERT INTO alerts (alert_type, comment, rating_avg, review_id)
+        VALUES ('rating_drop', NEW.comment, NEW.rating_star, NEW.id);
+    END IF;
+
+    IF NEW.sentiment = 'Negative' THEN
+        INSERT INTO alerts (alert_type, comment, review_id)
+        VALUES ('sentiment_negative', NEW.comment, NEW.id);
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_review_alert ON reviews;
+CREATE TRIGGER trg_review_alert
+    AFTER INSERT ON reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION check_review_alert();

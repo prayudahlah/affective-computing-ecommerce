@@ -1,5 +1,7 @@
 FROM docker.io/python:3.12.13-alpine3.23
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 COPY requirements.txt .
