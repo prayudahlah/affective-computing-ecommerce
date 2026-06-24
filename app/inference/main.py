@@ -72,8 +72,8 @@ def main():
 
     # Schema for the MongoDB document inside payload.after
     # Note: struct fields from Spark are stored as arrays in MongoDB
-    # due to pandas serialization. emotion_features = [n_exc, n_q, n_allcaps, n_el, max_repeat]
-    # discriminative_features = [n_demands, n_unc, n_swear, n_attach, n_repurch, n_trans]
+    # due to pandas serialization. emotion_features_basic = [n_exc, n_q, n_allcaps, n_el,
+    # max_repeat, n_demands, n_unc, n_swear, n_attach, n_repurch, n_trans]
     after_schema = StructType([
         StructField("_id", StringType(), True),
         StructField("nama pengguna", StringType(), True),
@@ -83,8 +83,7 @@ def main():
         StructField("ctime", IntegerType(), True),
         StructField("sentiment_vectorized", ArrayType(ArrayType(FloatType())), True),
         StructField("emotion_vectorized", ArrayType(ArrayType(FloatType())), True),
-        StructField("emotion_features", ArrayType(IntegerType()), True),
-        StructField("discriminative_features", ArrayType(IntegerType()), True),
+        StructField("emotion_features_basic", ArrayType(IntegerType()), True),
     ])
 
     # Schema for the Debezium envelope
@@ -124,7 +123,7 @@ def main():
     def predict_udf(
         review: str,
         sentiment_vec, emotion_vec,
-        emotion_feat, discriminative_feat,
+        basic_features,
     ):
         if not review or not review.strip():
             return (None, None)
@@ -135,7 +134,6 @@ def main():
         from scipy.sparse import csr_matrix, hstack
 
         # Reconstruct 1500-dim sentiment vector
-        # sentiment_vec is [[i, v], [i, v], ...]
         s_indices = [int(p[0]) for p in sentiment_vec]
         s_values = [float(p[1]) for p in sentiment_vec]
         s_vec = csr_matrix(
@@ -143,38 +141,29 @@ def main():
             shape=(1, 1500),
         )
 
-        # Predict sentiment
-        sent_label = str(sentiment_bc.value.predict(s_vec)[0])
+        # 11 basic features from single array
+        if basic_features and len(basic_features) >= 11:
+            basic_arr = np.array([float(basic_features[i]) for i in range(11)]).reshape(1, 11)
+        else:
+            basic_arr = np.zeros((1, 11))
 
-        # Reconstruct 3000-dim emotion vector
+        # Predict sentiment: 1500 TF-IDF + 11 basic = 1511
+        X_sent = hstack([s_vec, csr_matrix(basic_arr)])
+        sent_label = str(sentiment_bc.value.predict(X_sent)[0])
+
+        # Reconstruct 1500-dim emotion vector
         e_indices = [int(p[0]) for p in emotion_vec]
         e_values = [float(p[1]) for p in emotion_vec]
         e_vec = csr_matrix(
             (e_values, ([0] * len(e_indices), e_indices)),
-            shape=(1, 3000),
+            shape=(1, 1500),
         )
-
-        # 5 emotion features from array
-        if emotion_feat and len(emotion_feat) >= 5:
-            f5 = np.array([[float(emotion_feat[0]), float(emotion_feat[1]),
-                            float(emotion_feat[2]), float(emotion_feat[3]),
-                            float(emotion_feat[4])]])
-        else:
-            f5 = np.zeros((1, 5))
-
-        # 6 discriminative features from array
-        if discriminative_feat and len(discriminative_feat) >= 6:
-            f6 = np.array([[float(discriminative_feat[0]), float(discriminative_feat[1]),
-                            float(discriminative_feat[2]), float(discriminative_feat[3]),
-                            float(discriminative_feat[4]), float(discriminative_feat[5])]])
-        else:
-            f6 = np.zeros((1, 6))
 
         # Sentiment binary feature
         sent_binary = np.array([[1.0 if sent_label == "Positive" else 0.0]])
 
-        # Combine: 3000 + 5 + 6 + 1 = 3012
-        dense_part = csr_matrix(np.hstack([f5, f6, sent_binary]))
+        # Combine: 1500 + 11 + 1 = 1512
+        dense_part = csr_matrix(np.hstack([basic_arr, sent_binary]))
         X_emo = hstack([e_vec, dense_part])
 
         emo_label = str(emotion_bc.value.predict(X_emo)[0])
@@ -228,8 +217,7 @@ def main():
             col("doc.review"),
             col("doc.sentiment_vectorized"),
             col("doc.emotion_vectorized"),
-            col("doc.emotion_features"),
-            col("doc.discriminative_features"),
+            col("doc.emotion_features_basic"),
         ).alias("result"),
     ).select(
         col("comment_id"),
