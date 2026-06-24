@@ -250,16 +250,17 @@ def get_alerts_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFr
     params["limit"]  = limit
     params["offset"] = offset
     sql = f"""
-        SELECT triggered_at, alert_type, comment, rating_avg
-        FROM alerts
+        SELECT a.triggered_at, a.alert_type, a.comment, a.rating_avg, r.create_time
+        FROM alerts a
+        LEFT JOIN reviews r ON a.review_id = r.id
         {where}
-        ORDER BY triggered_at DESC
+        ORDER BY a.triggered_at DESC
         LIMIT :limit OFFSET :offset
     """
     with engine.connect() as conn:
         df = pd.DataFrame(
             conn.execute(text(sql), params).fetchall(),
-            columns=["triggered_at", "alert_type", "comment", "rating_avg"],
+            columns=["triggered_at", "alert_type", "comment", "rating_avg", "create_time"],
         )
     return df
 
