@@ -39,17 +39,13 @@ st.set_page_config(
 inject_css()
 st_autorefresh(interval=5000)
 
-default_from = date.today() - timedelta(days=7)
+default_from = date.today() - timedelta(days=30)
 default_to   = date.today()
 
-for pk, ak in {
-    "pending_date_from": "filter_date_from",
-    "pending_date_to": "filter_date_to",
-    "pending_product": "filter_product",
-    "pending_sentiment": "filter_sentiment",
-}.items():
-    if pk in st.session_state:
-        st.session_state[ak] = st.session_state.pop(pk)
+if "filter_date_from" not in st.session_state:
+    st.session_state.filter_date_from = default_from
+if "filter_date_to" not in st.session_state:
+    st.session_state.filter_date_to = default_to
 
 ALL_PRODUCT = "__all__"
 
@@ -67,31 +63,26 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
     st.markdown("**Kalender**")
     c1, c2 = st.columns(2)
     with c1:
-        st.date_input("Dari", key="filter_date_from",
-                       value=st.session_state.get("filter_date_from", default_from),
-                       max_value=default_to)
+        st.date_input("Dari", key="filter_date_from")
     with c2:
-        st.date_input("Sampai", key="filter_date_to",
-                       value=st.session_state.get("filter_date_to", default_to),
-                       min_value=st.session_state.get("filter_date_from", default_from),
-                       max_value=date.today())
+        st.date_input("Sampai", key="filter_date_to")
 
     st.markdown("**Rentang**")
     sc1, sc2, sc3 = st.columns(3)
     with sc1:
-        if st.button("Hari Ini", use_container_width=True, key="btn_today"):
-            st.session_state["pending_date_from"] = date.today()
-            st.session_state["pending_date_to"] = date.today()
+        if st.button("Hari Ini", width='stretch', key="btn_today"):
+            st.session_state.filter_date_from = date.today()
+            st.session_state.filter_date_to = date.today()
             st.rerun()
     with sc2:
-        if st.button("7 Hari", use_container_width=True, key="btn_7d"):
-            st.session_state["pending_date_from"] = date.today() - timedelta(days=7)
-            st.session_state["pending_date_to"] = date.today()
+        if st.button("7 Hari", width='stretch', key="btn_7d"):
+            st.session_state.filter_date_from = date.today() - timedelta(days=7)
+            st.session_state.filter_date_to = date.today()
             st.rerun()
     with sc3:
-        if st.button("30 Hari", use_container_width=True, key="btn_30d"):
-            st.session_state["pending_date_from"] = date.today() - timedelta(days=30)
-            st.session_state["pending_date_to"] = date.today()
+        if st.button("30 Hari", width='stretch', key="btn_30d"):
+            st.session_state.filter_date_from = date.today() - timedelta(days=30)
+            st.session_state.filter_date_to = date.today()
             st.rerun()
 
     st.divider()
@@ -121,16 +112,13 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
 
     st.divider()
 
-    if st.button("Reset Filter", use_container_width=True, key="btn_reset"):
-        for k in ["pending_date_from", "pending_date_to", "pending_product",
-                   "pending_sentiment"]:
-            st.session_state.pop(k, None)
-        st.session_state["pending_date_from"] = default_from
-        st.session_state["pending_date_to"] = default_to
-        st.session_state["pending_product"] = ALL_PRODUCT
-        st.session_state["pending_sentiment"] = ["Positive", "Negative"]
-        st.session_state["review_page"] = 0
-        st.session_state["alert_page"] = 0
+    if st.button("Reset Filter", width='stretch', key="btn_reset"):
+        st.session_state.filter_date_from = default_from
+        st.session_state.filter_date_to = default_to
+        st.session_state.filter_product = ALL_PRODUCT
+        st.session_state.filter_sentiment = ["Positive", "Negative"]
+        st.session_state.review_page = 0
+        st.session_state.alert_page = 0
         st.rerun()
 
 sel_prod = st.session_state.get("filter_product", ALL_PRODUCT)

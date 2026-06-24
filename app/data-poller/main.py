@@ -8,19 +8,19 @@ from kafka import KafkaProducer
 
 # ── Konfigurasi ──────────────────────────────────────────────────
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
-KAFKA_TOPIC             = os.getenv("KAFKA_TOPIC", "polled-data")
-SHOPEE_URL              = os.getenv("SHOPEE_URL", "")
-SCRAPE_INTERVAL         = float(os.getenv("SCRAPE_INTERVAL", "10"))
-POLL_INTERVAL           = int(os.getenv("POLL_INTERVAL", "60"))
-DATA_DIR                = os.getenv("DATA_DIR", "/app/data")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "polled-data")
+SHOPEE_URL = os.getenv("SHOPEE_URL", "")
+SCRAPE_INTERVAL = float(os.getenv("SCRAPE_INTERVAL", "10"))
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
+DATA_DIR = os.getenv("DATA_DIR", "/app/data")
 
-CATCHUP_WORKERS         = int(os.getenv("CATCHUP_WORKERS", "10"))
-CATCHUP_DELAY           = float(os.getenv("CATCHUP_DELAY", "0.5"))
-CATCHUP_CHECKPOINT_N    = int(os.getenv("CATCHUP_CHECKPOINT_N", "500"))
-CATCHUP_THRESHOLD_SECS  = int(os.getenv("CATCHUP_THRESHOLD_SECS", "3600"))
+CATCHUP_WORKERS = int(os.getenv("CATCHUP_WORKERS", "10"))
+CATCHUP_DELAY = float(os.getenv("CATCHUP_DELAY", "0.5"))
+CATCHUP_CHECKPOINT_N = int(os.getenv("CATCHUP_CHECKPOINT_N", "500"))
+CATCHUP_THRESHOLD_SECS = int(os.getenv("CATCHUP_THRESHOLD_SECS", "3600"))
 
 METADATA_FILE = os.path.join(DATA_DIR, "latest_metadata.json")
-COOKIES_FILE  = os.path.join(DATA_DIR, "cookies.json")
+COOKIES_FILE = os.path.join(DATA_DIR, "cookies.json")
 
 
 # ── Kafka ─────────────────────────────────────────────────────────
@@ -74,13 +74,17 @@ def save_metadata(metadata: dict):
 # ── Shared State untuk Catch-up ───────────────────────────────────
 class CatchUpState:
     def __init__(self, last_ctime: int):
-        self.last_ctime          = last_ctime       # batas bawah — ulasan lama
-        self.max_ctime           = last_ctime        # batas atas — ulasan terbaru yang ditemukan
-        self.new_count           = 0                 # total ulasan baru yang sudah di-produce
-        self.stop_event          = asyncio.Event()   # di-set kalau worker menemukan ulasan lama / data habis
-        self.lock                = asyncio.Lock()    # guard max_ctime & new_count
-        self.offset_gen_stopped  = False             # flag bahwa generator offset sudah berhenti
-        self.empty_page_count    = 0                 # berapa kali dapat halaman BENAR-BENAR kosong (bukan error)
+        self.last_ctime = last_ctime  # batas bawah — ulasan lama
+        self.max_ctime = last_ctime  # batas atas — ulasan terbaru yang ditemukan
+        self.new_count = 0  # total ulasan baru yang sudah di-produce
+        self.stop_event = (
+            asyncio.Event()
+        )  # di-set kalau worker menemukan ulasan lama / data habis
+        self.lock = asyncio.Lock()  # guard max_ctime & new_count
+        self.offset_gen_stopped = False  # flag bahwa generator offset sudah berhenti
+        self.empty_page_count = (
+            0  # berapa kali dapat halaman BENAR-BENAR kosong (bukan error)
+        )
 
 
 # ── Fetch satu halaman (async) ────────────────────────────────────
@@ -112,7 +116,9 @@ async def _fetch_once(
 
         returncode = body.get("returncode", 0)
         if returncode != 0:
-            print(f"[SCRAPE] returncode={returncode} pada offset {offset} — kemungkinan rate-limit.")
+            print(
+                f"[SCRAPE] returncode={returncode} pada offset {offset} — kemungkinan rate-limit."
+            )
             return None
 
         data_obj = body.get("data")
@@ -158,7 +164,9 @@ async def fetch_page(
 
             if attempt < max_retries:
                 wait = retry_delay * attempt
-                print(f"[SCRAPE] Offset {offset}: retry {attempt}/{max_retries} dalam {wait:.0f}s...")
+                print(
+                    f"[SCRAPE] Offset {offset}: retry {attempt}/{max_retries} dalam {wait:.0f}s..."
+                )
                 await asyncio.sleep(wait)
 
         except asyncio.TimeoutError:
@@ -231,14 +239,18 @@ async def catchup_worker(
             if item.get("product_items"):
                 product_name = item["product_items"][0].get("name", product_name)
 
-            batch.append({
-                "nama pengguna"  : item.get("author_username", "Anonymous"),
-                "produk"         : product_name,
-                "review"         : item.get("comment", ""),
-                "rating"         : item.get("rating_star", 0),
-                "waktu transaksi": datetime.fromtimestamp(current_ctime).strftime("%Y-%m-%d %H:%M"),
-                "ctime"          : current_ctime,
-            })
+            batch.append(
+                {
+                    "nama pengguna": item.get("author_username", "Anonymous"),
+                    "produk": product_name,
+                    "review": item.get("comment", ""),
+                    "rating": item.get("rating_star", 0),
+                    "waktu transaksi": datetime.fromtimestamp(current_ctime).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
+                    "ctime": current_ctime,
+                }
+            )
 
         for data in batch:
             producer.send(
@@ -273,11 +285,13 @@ async def catchup_worker(
 def _save_checkpoint(metadata: dict, shop_key: str, state: CatchUpState):
     now_epoch = int(time.time())
     metadata[shop_key] = {
-        "comment_time"               : state.max_ctime,
-        "last_scraped_time_formatted": datetime.fromtimestamp(state.max_ctime).strftime("%Y-%m-%d %H:%M"),
-        "last_run_time"              : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "last_run_epoch"             : now_epoch,
-        "new_reviews_count"          : state.new_count,
+        "comment_time": state.max_ctime,
+        "last_scraped_time_formatted": datetime.fromtimestamp(state.max_ctime).strftime(
+            "%Y-%m-%d %H:%M"
+        ),
+        "last_run_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "last_run_epoch": now_epoch,
+        "new_reviews_count": state.new_count,
     }
     save_metadata(metadata)
     print(f"[CHECKPOINT] Disimpan pada {state.new_count} ulasan.")
@@ -294,7 +308,7 @@ async def run_catchup(
     shop_key: str,
 ) -> int:
     print(f"\n[CATCHUP] Mulai mode catch-up dengan {CATCHUP_WORKERS} worker...")
-    state        = CatchUpState(last_ctime)
+    state = CatchUpState(last_ctime)
     offset_queue = asyncio.Queue(maxsize=CATCHUP_WORKERS * 3)
 
     async with aiohttp.ClientSession() as session:
@@ -339,7 +353,9 @@ async def run_catchup(
         now_epoch = int(time.time())
         if shop_key in metadata:
             metadata[shop_key]["last_run_epoch"] = now_epoch
-            metadata[shop_key]["last_run_time"]  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            metadata[shop_key]["last_run_time"] = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
             save_metadata(metadata)
 
     return state.max_ctime
@@ -358,9 +374,9 @@ def run_realtime(
     import requests
 
     print(f"\n[REALTIME] Mulai mode realtime scraping...")
-    offset        = 0
-    new_count     = 0
-    max_ctime     = last_ctime
+    offset = 0
+    new_count = 0
+    max_ctime = last_ctime
     stop_scraping = False
 
     while not stop_scraping:
@@ -404,12 +420,14 @@ def run_realtime(
                     product_name = item["product_items"][0].get("name", product_name)
 
                 data = {
-                    "nama pengguna"  : item.get("author_username", "Anonymous"),
-                    "produk"         : product_name,
-                    "review"         : item.get("comment", ""),
-                    "rating"         : item.get("rating_star", 0),
-                    "waktu transaksi": datetime.fromtimestamp(current_ctime).strftime("%Y-%m-%d %H:%M"),
-                    "ctime"          : current_ctime,
+                    "nama pengguna": item.get("author_username", "Anonymous"),
+                    "produk": product_name,
+                    "review": item.get("comment", ""),
+                    "rating": item.get("rating_star", 0),
+                    "waktu transaksi": datetime.fromtimestamp(current_ctime).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
+                    "ctime": current_ctime,
                 }
 
                 producer.send(
@@ -417,7 +435,9 @@ def run_realtime(
                     key=str(current_ctime).encode("utf-8"),
                     value=data,
                 )
-                print(f"[REALTIME] Terkirim: {data['nama pengguna']} | {data['produk']}")
+                print(
+                    f"[REALTIME] Terkirim: {data['nama pengguna']} | {data['produk']}"
+                )
                 new_count += 1
 
                 if current_ctime > max_ctime:
@@ -438,18 +458,22 @@ def run_realtime(
         print(f"[REALTIME] Flush selesai. Total terkirim: {new_count} ulasan.")
 
         metadata[shop_key] = {
-            "comment_time"               : max_ctime,
-            "last_scraped_time_formatted": datetime.fromtimestamp(max_ctime).strftime("%Y-%m-%d %H:%M"),
-            "last_run_time"              : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "last_run_epoch"             : now_epoch,
-            "new_reviews_count"          : new_count,
+            "comment_time": max_ctime,
+            "last_scraped_time_formatted": datetime.fromtimestamp(max_ctime).strftime(
+                "%Y-%m-%d %H:%M"
+            ),
+            "last_run_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "last_run_epoch": now_epoch,
+            "new_reviews_count": new_count,
         }
         save_metadata(metadata)
     else:
         print("[REALTIME] Tidak ada ulasan baru.")
         if shop_key in metadata:
             metadata[shop_key]["last_run_epoch"] = now_epoch
-            metadata[shop_key]["last_run_time"]  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            metadata[shop_key]["last_run_time"] = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
             save_metadata(metadata)
 
     return max_ctime
@@ -475,14 +499,14 @@ def scrape_and_produce(producer: KafkaProducer):
         print("[ERROR] Format SHOPEE_URL tidak valid!")
         return
 
-    user_id  = parts[4]
-    shop_id  = parts[5].replace("rating?shop_id=", "")
+    user_id = parts[4]
+    shop_id = parts[5].replace("rating?shop_id=", "")
     shop_key = f"{user_id}_{shop_id}"
 
-    cookies  = load_cookie(COOKIES_FILE)
+    cookies = load_cookie(COOKIES_FILE)
     metadata = load_metadata()
 
-    shop_meta  = metadata.get(shop_key, {})
+    shop_meta = metadata.get(shop_key, {})
     last_ctime = shop_meta.get("comment_time", 0)
 
     headers = {
@@ -497,13 +521,19 @@ def scrape_and_produce(producer: KafkaProducer):
         headers["cookie"] = cookies
 
     if is_catchup_needed(shop_meta):
-        print(f"[MODE] CATCH-UP (pertama kali atau gap run > {CATCHUP_THRESHOLD_SECS}s)")
+        print(
+            f"[MODE] CATCH-UP (pertama kali atau gap run > {CATCHUP_THRESHOLD_SECS}s)"
+        )
         asyncio.run(
-            run_catchup(producer, shop_id, user_id, headers, last_ctime, metadata, shop_key)
+            run_catchup(
+                producer, shop_id, user_id, headers, last_ctime, metadata, shop_key
+            )
         )
     else:
         print(f"[MODE] REALTIME (run terakhir < {CATCHUP_THRESHOLD_SECS}s yang lalu)")
-        run_realtime(producer, shop_id, user_id, headers, last_ctime, metadata, shop_key)
+        run_realtime(
+            producer, shop_id, user_id, headers, last_ctime, metadata, shop_key
+        )
 
 
 # ── Main Loop ─────────────────────────────────────────────────────

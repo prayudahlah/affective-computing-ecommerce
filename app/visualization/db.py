@@ -126,7 +126,7 @@ def get_kpi_metrics(filters: dict) -> dict:
         "pct_negative":        pct_neg_today,
         "pct_negative_delta":  round(pct_neg_today - pct_neg_yesterday, 1),
         "avg_rating_now":      avg_now,
-        "avg_rating_delta":    round(avg_now - avg_prev, 2) if avg_prev is not None else None,
+        "avg_rating_delta":    round(avg_now - avg_prev, 2) if avg_now is not None and avg_prev is not None else None,
         "alert_count":         alert_count,
         "f1_sentiment":        f1_sentiment,
         "f1_emotion":          f1_emotion,
