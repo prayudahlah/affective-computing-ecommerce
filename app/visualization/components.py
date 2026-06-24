@@ -581,6 +581,9 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
 
     df = df.copy()
     df["triggered_at"] = pd.to_datetime(df["triggered_at"]).dt.strftime("%Y-%m-%d %H:%M")
+    df["create_time"]  = df["create_time"].apply(
+        lambda x: pd.to_datetime(x).strftime("%Y-%m-%d %H:%M") if pd.notna(x) else "—"
+    )
     df["rating_avg"]   = df["rating_avg"].apply(
         lambda x: f"{float(x):.2f}" if pd.notna(x) else "—"
     )
@@ -601,6 +604,9 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
                             {dot}{alert_label}
                             <span style="font-size:0.7rem;color:{TEXT_MUTED};margin-left:8px;">
                                 {row["triggered_at"]}
+                            </span>
+                            <span style="font-size:0.65rem;color:{TEXT_MUTED};margin-left:6px;">
+                                ulasan: {row["create_time"]}
                             </span>
                         </div>
                         <div style="font-size:0.78rem;color:{TEXT_SECONDARY};margin-top:3px;">

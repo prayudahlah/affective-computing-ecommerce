@@ -26,10 +26,10 @@ EMOTION_MODEL_PATH = os.path.join(MODEL_DIR, "emotion_inference.joblib")
 
 def main():
     from pyspark.sql import SparkSession, DataFrame
-    from pyspark.sql.functions import from_json, col, udf, from_unixtime, coalesce, get_json_object
+    from pyspark.sql.functions import from_json, col, udf, from_unixtime, coalesce, get_json_object, window, avg, expr
     from pyspark.sql.types import (
         StructType, StructField, StringType, IntegerType,
-        FloatType, ArrayType, LongType,
+        FloatType, ArrayType, LongType, TimestampType,
     )
     import joblib
 
@@ -259,13 +259,21 @@ def main():
                             sentiment = EXCLUDED.sentiment,
                             emotion = EXCLUDED.emotion,
                             processed_at = CURRENT_TIMESTAMP
+                        RETURNING id
                     """, (
                         row.comment_id, row.buyer_username, row.product_name,
                         row.comment, row.rating_star, row.create_time,
                         row.sentiment, row.emotion,
                     ))
+                    review_id = cur.fetchone()[0]
+                    if row.sentiment == 'Negative' or row.emotion in ('Fear', 'Anger', 'Sadness'):
+                        logger.info("[ALERT] Sentimen negatif terdeteksi: %s", row.comment_id)
+                        cur.execute("""
+                            INSERT INTO alerts (alert_type, comment, review_id)
+                            VALUES ('sentiment_negative', %s, %s)
+                        """, (row.comment, review_id))
             conn.commit()
-            logger.info("[EPOCH %d] Upserted %d rows", epoch_id, len(rows))
+            logger.info("[EPOCH %d] Upserted %d rows, alerts: %s", epoch_id, len(rows), count)
         finally:
             conn.close()
 
@@ -287,7 +295,52 @@ def main():
         .start()
     )
 
-    pg_query.awaitTermination()
+    recent_ratings = (
+        predictions
+        .withColumn("ts", col("create_time").cast(TimestampType()))
+        .filter(col("ts") >= expr("current_timestamp() - INTERVAL '10 minutes'"))
+        .withWatermark("ts", "1 minute")
+        .groupBy(window(col("ts"), "10 minutes", "1 minute"))
+        .agg(avg("rating_star").alias("avg_rating"))
+        .filter(col("avg_rating") < 4.0)
+    )
+
+    def write_rating_alert(df: DataFrame, epoch_id: int):
+        count = df.count()
+        if count == 0:
+            return
+        rows = df.collect()
+        import psycopg2
+        conn = psycopg2.connect(
+            host="postgres", port=5432, database="postgres",
+            user=POSTGRES_USER, password=POSTGRES_PASSWORD,
+        )
+        try:
+            with conn.cursor() as cur:
+                for row in rows:
+                    cur.execute("""
+                        INSERT INTO alerts (alert_type, rating_avg)
+                        SELECT 'rating_drop', %s
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM alerts
+                            WHERE alert_type = 'rating_drop'
+                            AND triggered_at > NOW() - INTERVAL '10 minutes'
+                        )
+                    """, (float(row.avg_rating),))
+            conn.commit()
+        finally:
+            conn.close()
+
+    rating_alert_query = (
+        recent_ratings.writeStream
+        .foreachBatch(write_rating_alert)
+        .outputMode("update")
+        .trigger(processingTime="10 seconds")
+        .option("checkpointLocation", CHECKPOINT_DIR + "/rating_alerts")
+        .start()
+    )
+
+    spark.streams.awaitAnyTermination()
 
 
 if __name__ == "__main__":
