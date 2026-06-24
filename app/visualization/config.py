@@ -18,12 +18,11 @@ TEXT_SECONDARY = "#8B949E"
 TEXT_MUTED     = "#484F58"
 
 EMOTION_COLORS = {
-    "Senang":   "#1A7FD4",
-    "Puas":     "#2EA043",
-    "Netral":   "#8B949E",
-    "Kecewa":   "#F472B6",
-    "Marah":    "#F05252",
-    "Sedih":    "#B794F4",
+    "Happy":   "#1A7FD4",
+    "Love":    "#2EA043",
+    "Fear":    "#F472B6",
+    "Sadness": "#B794F4",
+    "Anger":   "#F05252",
 }
 
 SENTIMENT_COLORS = {

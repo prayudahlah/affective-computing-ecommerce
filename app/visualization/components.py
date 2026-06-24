@@ -384,7 +384,7 @@ def render_time_series(df: pd.DataFrame):
             )
 
             chart = _chart_cfg(alt.layer(area, line), height=320)
-            st.altair_chart(chart, use_container_width=True, theme=None)
+            st.altair_chart(chart, width='stretch', theme=None)
         except Exception as e:
             st.error(f"Gagal merender grafik: {e}")
 
@@ -419,7 +419,7 @@ def render_sentiment_emotion(df_sent: pd.DataFrame, df_emo: pd.DataFrame):
             )
             st.altair_chart(
                 _chart_cfg(donut, height=300),
-                use_container_width=True,
+                width='stretch',
                 theme=None,
             )
 
@@ -451,7 +451,7 @@ def render_sentiment_emotion(df_sent: pd.DataFrame, df_emo: pd.DataFrame):
             )
             st.altair_chart(
                 _chart_cfg(bar, height=300),
-                use_container_width=True,
+                width='stretch',
                 theme=None,
             )
 
@@ -562,11 +562,11 @@ def render_reviews_table(df: pd.DataFrame, page: int, total: int, page_size: int
             unsafe_allow_html=True,
         )
     with prev_col:
-        if st.button("◀", key="prev_review", disabled=(page == 0), use_container_width=True):
+        if st.button("◀", key="prev_review", disabled=(page == 0), width='stretch'):
             st.session_state.review_page = page - 1
             st.rerun()
     with next_col:
-        if st.button("▶", key="next_review", disabled=(page >= total_pages - 1), use_container_width=True):
+        if st.button("▶", key="next_review", disabled=(page >= total_pages - 1), width='stretch'):
             st.session_state.review_page = page + 1
             st.rerun()
 
@@ -627,10 +627,10 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
             unsafe_allow_html=True,
         )
     with prev_col:
-        if st.button("◀", key="prev_alert", disabled=(page == 0), use_container_width=True):
+        if st.button("◀", key="prev_alert", disabled=(page == 0), width='stretch'):
             st.session_state.alert_page = page - 1
             st.rerun()
     with next_col:
-        if st.button("▶", key="next_alert", disabled=(page >= total_pages - 1), use_container_width=True):
+        if st.button("▶", key="next_alert", disabled=(page >= total_pages - 1), width='stretch'):
             st.session_state.alert_page = page + 1
             st.rerun()
