@@ -27,25 +27,48 @@ Variabel yang perlu diperhatikan:
 | `SCRAPE_INTERVAL` | Jeda antar request scraping (detik), default `10` |
 | `MONGO_USER` / `MONGO_PASSWORD` | Kredensial MongoDB |
 | `INFERENCE_DB_USER` / `INFERENCE_DB_PASSWORD` | Kredensial PostgreSQL |
-| `TELEGRAM_BOT_TOKEN` | Token bot Telegram dari @BotFather |
-| `TELEGRAM_CHAT_ID` | ID chat tujuan alert Telegram |
+| `TELEGRAM_BOT_TOKEN` | Token bot Telegram dari @BotFather (untuk PL/Python, isi langsung di `scripts/telegram-alert-function.sql`) |
+| `TELEGRAM_CHAT_ID` | ID chat tujuan alert Telegram (untuk PL/Python, isi langsung di `scripts/telegram-alert-function.sql`) |
 
-### 2.5. Setup Telegram Bot (Opsional)
+### 2.5. Setup Telegram Alert (di PostgreSQL laptop 3)
 
-Bot otomatis mengirim ringkasan alert tiap 10 menit ke Telegram.
+Alert otomatis terkirim ke Telegram via **PL/Python** — fungsi PostgreSQL yang dipanggil trigger setiap ada INSERT ke tabel `alerts`.
+
+#### 2.5.1. Buat bot Telegram
+
+1. Buka @BotFather di Telegram, ketik `/newbot`, ikuti petunjuk
+2. Simpan token (contoh: `7234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`)
+3. Kirim pesan ke bot kamu, lalu cek chat ID:
+   ```
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+4. Ganti `TOKEN` & `CHAT_ID` di `scripts/telegram-alert-function.sql`
+
+#### 2.5.2. Install plpython3u di PostgreSQL
 
 ```bash
-# Dapatkan token dari @BotFather di Telegram, lalu isi di .env
-TELEGRAM_BOT_TOKEN=7234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
-TELEGRAM_CHAT_ID=5519545800
+# Jika pakai Docker, butuh image postgres dengan Python:
+# docker.io/postgres:18.3-bookworm (bukan alpine)
 ```
 
-Cara dapat `TELEGRAM_CHAT_ID`:
-1. Kirim pesan apa saja ke bot Telegram yang sudah dibuat
-2. Buka: `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getUpdates`
-3. Cari `chat.id` di response JSON
+```sql
+CREATE EXTENSION IF NOT EXISTS plpython3u;
+```
 
-**Catatan:** File `.env` sudah di `.gitignore`, token tidak akan ikut terpush ke repository.
+#### 2.5.3. Jalankan fungsi forward_alert_to_telegram
+
+```bash
+psql -U postgres -d postgres -f scripts/telegram-alert-function.sql
+```
+
+#### 2.5.4. Buat trigger yang memanggil fungsi
+
+```sql
+CREATE TRIGGER trg_forward_alert
+    AFTER INSERT ON alerts
+    FOR EACH ROW
+    EXECUTE FUNCTION forward_alert_to_telegram();
+```
 
 ### 3. Jalankan semua container
 
