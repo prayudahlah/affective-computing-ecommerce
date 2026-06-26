@@ -12,6 +12,12 @@ from config import (
     RATING_THRESHOLD,
 )
 
+def _short_product_name(name):
+    if name and "/" in name:
+        return name.split("/")[0].strip()
+    return name or ""
+
+
 def _chart_cfg(chart, height=320):
     return (
         chart
@@ -478,7 +484,7 @@ def render_top_products(df: pd.DataFrame):
                 <div style="display:flex;justify-content:space-between;
                             align-items:baseline;margin-bottom:0.5rem;">
                     <span style="font-weight:600;font-size:0.93rem;color:{TEXT_PRIMARY};">
-                        {row['product_name']}
+                        {_short_product_name(row['product_name'])}
                     </span>
                     <span style="font-size:0.82rem;color:{TEXT_SECONDARY};">
                         {row['total_reviews']} ulasan &nbsp;|&nbsp;
@@ -527,7 +533,7 @@ def render_reviews_table(df: pd.DataFrame, page: int, total: int, page_size: int
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:0.82rem;font-weight:600;color:{TEXT_PRIMARY};">
-                            {row["product_name"]}
+                            {_short_product_name(row["product_name"])}
                             <span style="font-size:0.7rem;color:{TEXT_MUTED};margin-left:8px;">
                                 {row["create_time"]}
                             </span>
@@ -580,11 +586,9 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
         return
 
     df = df.copy()
-    df["triggered_at"] = pd.to_datetime(df["triggered_at"]).dt.strftime("%Y-%m-%d %H:%M")
-    df["create_time"]  = df["create_time"].apply(
-        lambda x: pd.to_datetime(x).strftime("%Y-%m-%d %H:%M") if pd.notna(x) else "—"
-    )
-    df["rating_avg"]   = df["rating_avg"].apply(
+    df["triggered_at"]      = pd.to_datetime(df["triggered_at"]).dt.strftime("%Y-%m-%d %H:%M")
+    df["review_created_at"] = pd.to_datetime(df["review_created_at"]).dt.strftime("%Y-%m-%d %H:%M")
+    df["rating_avg"]        = df["rating_avg"].apply(
         lambda x: f"{float(x):.2f}" if pd.notna(x) else "—"
     )
 
@@ -594,6 +598,7 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
         comment_trunc = (row["comment"][:80] + "…") if len(row["comment"]) > 80 else row["comment"]
         is_rating = row["alert_type"] == "rating_drop"
         accent = ACCENT_PURPLE if is_rating else ACCENT_RED
+        review_date = row["review_created_at"] if pd.notna(row["review_created_at"]) else row["triggered_at"]
 
         st.markdown(
             f"""
@@ -603,11 +608,14 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
                         <div style="font-size:0.82rem;font-weight:600;color:{TEXT_PRIMARY};">
                             {dot}{alert_label}
                             <span style="font-size:0.7rem;color:{TEXT_MUTED};margin-left:8px;">
-                                {row["triggered_at"]}
+                                {review_date}
                             </span>
                             <span style="font-size:0.65rem;color:{TEXT_MUTED};margin-left:6px;">
                                 ulasan: {row["create_time"]}
                             </span>
+                        </div>
+                        <div style="font-size:0.72rem;font-weight:500;color:{ASUS_BLUE};margin-top:2px;">
+                            {_short_product_name(row["product_name"])}
                         </div>
                         <div style="font-size:0.78rem;color:{TEXT_SECONDARY};margin-top:3px;">
                             {comment_trunc}
