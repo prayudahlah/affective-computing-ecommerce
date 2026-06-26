@@ -60,6 +60,20 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
         unsafe_allow_html=True,
     )
 
+    st.markdown("**Rentang**")
+    if st.button("Hari Ini", width='stretch', key="btn_today"):
+        st.session_state.filter_date_from = date.today()
+        st.session_state.filter_date_to = date.today()
+        st.rerun()
+    if st.button("7 Hari", width='stretch', key="btn_7d"):
+        st.session_state.filter_date_from = date.today() - timedelta(days=7)
+        st.session_state.filter_date_to = date.today()
+        st.rerun()
+    if st.button("30 Hari", width='stretch', key="btn_30d"):
+        st.session_state.filter_date_from = date.today() - timedelta(days=30)
+        st.session_state.filter_date_to = date.today()
+        st.rerun()
+
     st.markdown("**Kalender**")
     c1, c2 = st.columns(2)
     with c1:
@@ -67,36 +81,12 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
     with c2:
         st.date_input("Sampai", key="filter_date_to")
 
-    st.markdown("**Rentang**")
-    sc1, sc2, sc3 = st.columns(3)
-    with sc1:
-        if st.button("Hari Ini", width='stretch', key="btn_today"):
-            st.session_state.filter_date_from = date.today()
-            st.session_state.filter_date_to = date.today()
-            st.rerun()
-    with sc2:
-        if st.button("7 Hari", width='stretch', key="btn_7d"):
-            st.session_state.filter_date_from = date.today() - timedelta(days=7)
-            st.session_state.filter_date_to = date.today()
-            st.rerun()
-    with sc3:
-        if st.button("30 Hari", width='stretch', key="btn_30d"):
-            st.session_state.filter_date_from = date.today() - timedelta(days=30)
-            st.session_state.filter_date_to = date.today()
-            st.rerun()
 
     st.divider()
 
     product_options = get_products()
-    search_query = st.text_input("Cari Produk", key="product_search",
-                                  placeholder="Ketik nama produk...")
-    filtered = [p for p in product_options
-                if search_query.lower() in p.lower()] if search_query else product_options
-    selected = st.session_state.get("filter_product", ALL_PRODUCT)
-    if selected != ALL_PRODUCT and selected not in filtered:
-        selected = ALL_PRODUCT
     st.selectbox("Produk",
-                  options=[ALL_PRODUCT, *filtered],
+                  options=[ALL_PRODUCT, *product_options],
                   format_func=lambda x: "Semua Produk" if x == ALL_PRODUCT else x,
                   key="filter_product")
 
@@ -143,7 +133,6 @@ if st.session_state.get("_last_filter_key") != filter_key:
     st.session_state["_last_filter_key"] = filter_key
 
 render_header()
-st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 metrics = get_kpi_metrics(filters)
 render_kpi_cards(metrics)

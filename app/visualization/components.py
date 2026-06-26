@@ -52,6 +52,9 @@ def inject_css():
     st.markdown(
         f"""
         <style>
+        html {{
+            font-size: 17px;
+        }}
         html, body,
         [data-testid="stAppViewContainer"],
         [data-testid="stMain"],
@@ -59,8 +62,18 @@ def inject_css():
             background-color: {BG_BASE} !important;
             color: {TEXT_PRIMARY};
         }}
+        header[data-testid="stHeader"] {{
+            background: {BG_SURFACE} !important;
+            border-bottom: 1px solid {BG_BORDER};
+        }}
+        [data-testid="stDecoration"] {{
+            display: none;
+        }}
+        [data-testid="stAppViewContainer"] {{
+            margin-top: -0.75rem;
+        }}
         [data-testid="stAppViewContainer"] > .main > div {{
-            padding-top: 1.5rem;
+            padding-top: 0;
         }}
 
         [data-testid="stSidebar"] {{
@@ -77,12 +90,35 @@ def inject_css():
             color: {TEXT_PRIMARY} !important;
             border-radius: 6px;
         }}
+        [data-testid="stSidebar"] input::placeholder {{
+            color: {TEXT_SECONDARY} !important;
+            opacity: 1;
+        }}
         [data-testid="stSidebar"] .stMultiSelect [data-baseweb="select"] {{
             background: {BG_ELEVATED} !important;
             border: 1px solid {BG_BORDER} !important;
         }}
         [data-testid="stSidebar"] .stMultiSelect span {{
             color: {TEXT_PRIMARY} !important;
+        }}
+        [data-testid="stSelectbox"] > div > div {{
+            background: {BG_ELEVATED} !important;
+            border: 1px solid {BG_BORDER} !important;
+            border-radius: 6px;
+        }}
+        [data-testid="stSelectbox"] input {{
+            color: {TEXT_PRIMARY} !important;
+        }}
+        [data-baseweb="popover"] ul {{
+            background: {BG_SURFACE} !important;
+            border: 1px solid {BG_BORDER} !important;
+        }}
+        [data-baseweb="popover"] li {{
+            color: {TEXT_PRIMARY} !important;
+            background: {BG_SURFACE} !important;
+        }}
+        [data-baseweb="popover"] li:hover {{
+            background: {BG_ELEVATED} !important;
         }}
 
         [data-testid="stSidebar"] .stButton > button {{
@@ -216,7 +252,7 @@ def inject_css():
 
 
         .model-card {{
-            background: {BG_ELEVATED};
+            background: {BG_SURFACE};
             border: 1px solid {BG_BORDER};
             border-top: 3px solid {ACCENT_PINK};
             border-radius: 8px;
@@ -270,7 +306,7 @@ def inject_css():
 def render_header():
     st.markdown(
         f"""
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:0.5rem;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:0;">
             <div style="width:5px;height:50px;background:{ASUS_BLUE};
                         border-radius:3px;flex-shrink:0;"></div>
             <div>
