@@ -47,8 +47,6 @@ VALUES
     ('emotion_v1',   0.67,   '2026-06-20', TRUE, 'emotion')
 ON CONFLICT DO NOTHING;
 
--- Fungsi dan trigger untuk notifikasi alert ke Telegram (via pg_notify)
-CREATE OR REPLACE FUNCTION notify_alert_inserted()
 -- Fungsi PL/Python untuk forward alert ke Telegram
 -- Dipanggil oleh trigger trg_forward_alert di tabel alerts
 CREATE EXTENSION IF NOT EXISTS plpython3u;
@@ -59,10 +57,10 @@ RETURNS TRIGGER AS $$
 import json
 import urllib.request
 
-# ==== KONFIGURASI ====
-TOKEN = "8825916813:AAGEcVG4ySqVfHO8K5ahHa-6OST087iN1Hw"
-CHAT_ID = "-5338715921"
-# =====================
+# ==== KONFIGURASI (dibaca dari custom_params via ALTER SYSTEM) ====
+TOKEN = plpy.execute("SELECT current_setting('telegram.bot_token')")[0]['current_setting']
+CHAT_ID = plpy.execute("SELECT current_setting('telegram.chat_id')")[0]['current_setting']
+# ================================================================
 
 # 1. Ambil data dari TD["new"]
 alert_type = TD['new']['alert_type']

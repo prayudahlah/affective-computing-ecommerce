@@ -300,10 +300,13 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:z
+      - ./scripts/init-telegram-config.sh:/docker-entrypoint-initdb.d/init-telegram-config.sh:z
     environment:
       POSTGRES_USER: ${INFERENCE_DB_USER:-postgres}
       POSTGRES_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
       POSTGRES_DB: ${INFERENCE_DB_NAME:-postgres}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     env_file: .env
     ports:
       - ${INFERENCE_DB_HOST_PORT:-5432}:5432
