@@ -81,6 +81,29 @@ services:
       - device_1
       - dev
 
+  kafka-init-cdc:
+    image: docker.io/apache/kafka:4.1.2
+    restart: "no"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    network_mode: "service:kafka"
+    entrypoint:
+      - /opt/kafka/bin/kafka-topics.sh
+      - --bootstrap-server
+      - localhost:9092
+      - --create
+      - --if-not-exists
+      - --topic
+      - cdc.mongodb.ecommerce.reviews
+      - --partitions
+      - "1"
+      - --replication-factor
+      - "1"
+    profiles:
+      - device_1
+      - dev
+
   data-preprocess:
     build:
       context: ./app/data-preprocess
@@ -251,6 +274,8 @@ services:
       postgres:
         condition: service_healthy
       debezium-register:
+        condition: service_completed_successfully
+      kafka-init-cdc:
         condition: service_completed_successfully
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
