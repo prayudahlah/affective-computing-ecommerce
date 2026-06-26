@@ -14,8 +14,10 @@
 --        FOR EACH ROW
 --        EXECUTE FUNCTION forward_alert_to_telegram();
 --
--- 4. Ganti TOKEN & CHAT_ID di bawah dengan milikmu
---    atau pakai ALTER SYSTEM SET telegram.bot_token = '...'
+-- 4. Set custom_params di postgresql.conf / ALTER SYSTEM:
+--    ALTER SYSTEM SET telegram.bot_token = 'TOKEN_ANDA';
+--    ALTER SYSTEM SET telegram.chat_id = 'CHAT_ID_ANDA';
+--    SELECT pg_reload_conf();
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION forward_alert_to_telegram()
@@ -24,10 +26,10 @@ RETURNS TRIGGER AS $$
 import json
 import urllib.request
 
-# ==== KONFIGURASI ====
-TOKEN = "changeme"
-CHAT_ID = "changeme"
-# =====================
+# ==== KONFIGURASI (dibaca dari custom_params via ALTER SYSTEM) ====
+TOKEN = plpy.execute("SELECT current_setting('telegram.bot_token')")[0]['current_setting']
+CHAT_ID = plpy.execute("SELECT current_setting('telegram.chat_id')")[0]['current_setting']
+# ================================================================
 
 # 1. Ambil data dari TD["new"]
 alert_type = TD['new']['alert_type']
