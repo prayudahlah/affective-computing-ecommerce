@@ -97,12 +97,17 @@ text-transform:uppercase;color:{TEXT_SECONDARY};">ASUS Indonesia</div>
 
     st.divider()
 
+    def _ensure_sentiment_selected():
+        if not st.session_state.filter_sentiment:
+            st.session_state.filter_sentiment = ["Positive", "Negative"]
+
     st.pills(
         "Sentimen",
         ["Positive", "Negative"],
         selection_mode="multi",
         default=st.session_state.get("filter_sentiment", ["Positive", "Negative"]),
         key="filter_sentiment",
+        on_change=_ensure_sentiment_selected,
     )
 
     st.divider()
