@@ -9,3 +9,9 @@ __pycache__
 cookies.json
 latest_metadata.json
 shoope_rating.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
