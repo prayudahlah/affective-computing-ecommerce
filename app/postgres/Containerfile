@@ -1,0 +1,3 @@
+FROM docker.io/postgres:18-alpine
+
+RUN apk add --no-cache postgresql18-plpython3
