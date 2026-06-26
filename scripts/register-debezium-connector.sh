@@ -25,24 +25,28 @@ for i in $(seq 1 $RETRIES); do
   sleep "$DELAY"
 done
 
-echo "[REGISTER] Registering mongodb-source-connector..."
+MONGO_URI="${MONGO_URI:-mongodb://mongodb:27017/?replicaSet=rs0}"
 
-# Note: mongodb.connection.string uses 'mongodb' hostname which is internal to docker network
-# This works for both local (bridge) and distributed (host) as long as mongodb is reachable
+echo "[REGISTER] Registering mongodb-source-connector..."
+echo "[REGISTER] Mongo URI: ${MONGO_URI}"
+
 RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   "http://${DEBEZIUM_HOST}:${DEBEZIUM_PORT}/connectors" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "mongodb-source-connector",
-    "config": {
-      "connector.class": "io.debezium.connector.mongodb.MongoDbConnector",
-      "mongodb.connection.string": "mongodb://mongodb:27017/?replicaSet=rs0",
-      "topic.prefix": "cdc.mongodb",
-      "database.include.list": "ecommerce",
-      "collection.include.list": "ecommerce.reviews",
-      "snapshot.mode": "initial"
-    }
-  }')
+  -d "$(cat <<CONFIG
+{
+  "name": "mongodb-source-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mongodb.MongoDbConnector",
+    "mongodb.connection.string": "${MONGO_URI}",
+    "topic.prefix": "cdc.mongodb",
+    "database.include.list": "ecommerce",
+    "collection.include.list": "ecommerce.reviews",
+    "snapshot.mode": "initial"
+  }
+}
+CONFIG
+)")
 
 if [ "$RESPONSE" = "201" ] || [ "$RESPONSE" = "409" ]; then
   echo "[REGISTER] Success (HTTP ${RESPONSE})"

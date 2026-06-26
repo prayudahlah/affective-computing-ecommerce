@@ -8,7 +8,7 @@ services:
       - kafka
     network_mode: host
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_HOST_IP:-127.0.0.1}:9092
+      KAFKA_BOOTSTRAP_SERVERS: ${DEVICE_1_IP:-127.0.0.1}:9092
       KAFKA_TOPIC: polled-data
       KAFKA_GROUP_ID: polled-data-group
     env_file: .env
@@ -19,13 +19,12 @@ services:
   kafka:
     image: docker.io/apache/kafka:4.1.2
     restart: unless-stopped
-    ports:
-      - ${KAFKA_HOST_PORT:-9092}:9092
+    network_mode: host
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://${DEVICE_1_IP:-127.0.0.1}:9092,CONTROLLER://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${DEVICE_1_IP:-127.0.0.1}:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
@@ -40,11 +39,16 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092
+            --list",
+        ]
       interval: 10s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 45s
     profiles:
       - device_1
       - dev
@@ -55,11 +59,11 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    network_mode: "service:kafka"
+    network_mode: host
     entrypoint:
       - /opt/kafka/bin/kafka-topics.sh
       - --bootstrap-server
-      - localhost:9092
+      - ${DEVICE_1_IP:-127.0.0.1}:9092
       - --create
       - --if-not-exists
       - --topic
@@ -68,6 +72,7 @@ services:
       - "1"
       - --replication-factor
       - "1"
+    env_file: .env
     profiles:
       - device_1
       - dev
@@ -78,11 +83,11 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    network_mode: "service:kafka"
+    network_mode: host
     entrypoint:
       - /opt/kafka/bin/kafka-topics.sh
       - --bootstrap-server
-      - localhost:9092
+      - ${DEVICE_1_IP:-127.0.0.1}:9092
       - --create
       - --if-not-exists
       - --topic
@@ -91,6 +96,7 @@ services:
       - "1"
       - --replication-factor
       - "1"
+    env_file: .env
     profiles:
       - device_1
       - dev
@@ -98,11 +104,11 @@ services:
   kafka-ui:
     image: docker.io/provectuslabs/kafka-ui:latest
     restart: unless-stopped
-    ports:
-      - 8082:8080
+    network_mode: host
     environment:
+      SERVER_PORT: 8082
       KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${KAFKA_HOST_IP:-127.0.0.1}:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${DEVICE_1_IP:-127.0.0.1}:9092
     profiles:
       - device_1
       - dev
@@ -112,11 +118,8 @@ services:
       context: ./app/data-preprocess
       dockerfile: Containerfile
     restart: unless-stopped
+    network_mode: host
     depends_on:
-      kafka:
-        condition: service_healthy
-      kafka-init:
-        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
       mongodb-init:
@@ -124,7 +127,7 @@ services:
       spark-master:
         condition: service_healthy
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: ${DEVICE_1_IP:-127.0.0.1}:9092
       KAFKA_TOPIC: "polled-data"
       SCRAPE_INTERVAL: "10"
       POLL_INTERVAL: "60"
@@ -132,7 +135,7 @@ services:
       MONGO_URI: "mongodb://localhost:27017"
       MONGO_DB: ecommerce
       MONGO_COLLECTION: reviews
-      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_MASTER_URL: spark://${DEVICE_2_IP:-127.0.0.1}:7077
       CHECKPOINT_DIR: /app/data/checkpoint
     env_file: .env
     volumes:
@@ -144,17 +147,15 @@ services:
   spark-master:
     image: docker.io/apache/spark:4.1.2
     restart: unless-stopped
-    ports:
-      - ${HOST_IP:-127.0.0.1}:${SPARK_APP_UI_HOST_PORT:-4040}:4040
-      - ${HOST_IP:-127.0.0.1}:${SPARK_MASTER_RPC_HOST_PORT:-7077}:7077
-      - ${HOST_IP:-127.0.0.1}:${SPARK_MASTER_WEB_UI_HOST_PORT:-8080}:8080
+    network_mode: host
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 20s
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host 127.0.0.1
+    env_file: .env
     profiles:
       - device_2
       - dev
@@ -164,10 +165,12 @@ services:
       context: ./app/spark
       dockerfile: Containerfile
     restart: unless-stopped
+    network_mode: host
     depends_on:
       - spark-master
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
-      spark://spark-master:7077
+      spark://127.0.0.1:7077
+    env_file: .env
     profiles:
       - device_2
       - dev
@@ -175,10 +178,7 @@ services:
   mongodb:
     image: docker.io/mongo:8.0
     restart: unless-stopped
-    expose:
-      - 27017
-    ports:
-      - ${HOST_IP:-127.0.0.1}:${MONGO_HOST_PORT:-27017}:27017
+    network_mode: host
     environment:
       GLIBC_TUNABLES: glibc.pthread.rseq=1
     volumes:
@@ -224,10 +224,10 @@ services:
   mongo-express:
     image: docker.io/mongo-express:1.0.2-20
     restart: unless-stopped
-    ports:
-      - 8081:8081
+    network_mode: host
     environment:
-      ME_CONFIG_MONGODB_URL: mongodb://${KAFKA_HOST_IP:-127.0.0.1}:27017/${MONGO_DB:-ecommerce}?replicaSet=rs0
+      PORT: 8084
+      ME_CONFIG_MONGODB_URL: mongodb://localhost:27017/${MONGO_DB:-ecommerce}?replicaSet=rs0
       ME_CONFIG_BASICAUTH: "false"
     profiles:
       - device_2
@@ -244,12 +244,10 @@ services:
         condition: service_started
       mongodb-init:
         condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
     volumes:
       - cdc-offset-data:/offset
     environment:
-      BOOTSTRAP_SERVERS: ${KAFKA_HOST_IP:-127.0.0.1}:${KAFKA_HOST_PORT:-9092}
+      BOOTSTRAP_SERVERS: ${DEVICE_1_IP:-127.0.0.1}:9092
       GROUP_ID: debezium-cdc-group
       CONFIG_STORAGE_TOPIC: debezium.configs
       OFFSET_STORAGE_TOPIC: debezium.offsets
@@ -272,6 +270,8 @@ services:
     depends_on:
       debezium:
         condition: service_healthy
+    environment:
+      MONGO_URI: mongodb://localhost:27017/?replicaSet=rs0
     volumes:
       - ./scripts/register-debezium-connector.sh:/register.sh:z
     entrypoint: sh /register.sh localhost 8083
@@ -286,20 +286,14 @@ services:
     restart: unless-stopped
     network_mode: host
     depends_on:
-      kafka:
-        condition: service_healthy
       postgres:
         condition: service_healthy
-      debezium-register:
-        condition: service_completed_successfully
-      kafka-init-cdc:
-        condition: service_completed_successfully
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_HOST_IP:-127.0.0.1}:${KAFKA_HOST_PORT:-9092}
+      KAFKA_BOOTSTRAP_SERVERS: ${DEVICE_1_IP:-127.0.0.1}:9092
       KAFKA_TOPIC: cdc.mongodb.ecommerce.reviews
       KAFKA_GROUP_ID: ml-inference-group
-      SPARK_MASTER_URL: spark://${KAFKA_HOST_IP:-127.0.0.1}:7077
-      POSTGRES_JDBC_URL: jdbc:postgresql://${KAFKA_HOST_IP:-127.0.0.1}:${INFERENCE_DB_HOST_PORT:-5432}/${INFERENCE_DB_NAME:-postgres}
+      SPARK_MASTER_URL: spark://${DEVICE_2_IP:-127.0.0.1}:7077
+      POSTGRES_JDBC_URL: jdbc:postgresql://localhost:${INFERENCE_DB_HOST_PORT:-5432}/${INFERENCE_DB_NAME:-postgres}
       POSTGRES_USER: ${INFERENCE_DB_USER:-postgres}
       POSTGRES_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
       MODEL_DIR: /app/models
@@ -316,6 +310,7 @@ services:
       context: ./app/postgres
       dockerfile: Containerfile
     restart: unless-stopped
+    network_mode: host
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:z
@@ -327,8 +322,6 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     env_file: .env
-    ports:
-      - ${INFERENCE_DB_HOST_PORT:-5432}:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${INFERENCE_DB_USER} -d ${INFERENCE_DB_NAME}"]
       interval: 5s
@@ -343,6 +336,11 @@ services:
       context: ./app/visualization
       dockerfile: Containerfile
     network_mode: host
+    environment:
+      INFERENCE_DB_HOST: ${DEVICE_3_IP:-127.0.0.1}
+      INFERENCE_DB_USER: ${INFERENCE_DB_USER:-postgres}
+      INFERENCE_DB_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
+      INFERENCE_DB_NAME: ${INFERENCE_DB_NAME:-postgres}
     profiles:
       - device_4
       - dev

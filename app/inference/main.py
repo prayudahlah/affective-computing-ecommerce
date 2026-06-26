@@ -16,9 +16,12 @@ KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "ml-inference-group")
 SPARK_MASTER_URL = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/app/data/checkpoint")
 MODEL_DIR = os.getenv("MODEL_DIR", "/app/models")
-POSTGRES_JDBC_URL = os.getenv("POSTGRES_JDBC_URL", "jdbc:postgresql://postgres:5432/postgres")
-POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
+POSTGRES_HOST = os.getenv("INFERENCE_DB_HOST", "localhost")
+POSTGRES_PORT = int(os.getenv("INFERENCE_DB_HOST_PORT", "5432"))
+POSTGRES_DB = os.getenv("INFERENCE_DB_NAME", "postgres")
+POSTGRES_JDBC_URL = os.getenv("POSTGRES_JDBC_URL", f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}")
+POSTGRES_USER = os.getenv("INFERENCE_DB_USER", "postgres")
+POSTGRES_PASSWORD = os.getenv("INFERENCE_DB_PASSWORD", "postgres")
 
 SENTIMENT_MODEL_PATH = os.path.join(MODEL_DIR, "sentiment_inference.joblib")
 EMOTION_MODEL_PATH = os.path.join(MODEL_DIR, "emotion_inference.joblib")
@@ -241,9 +244,9 @@ def main():
         import psycopg2
         rows = df.collect()
         conn = psycopg2.connect(
-            host="postgres",
-            port=5432,
-            database="postgres",
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            database=POSTGRES_DB,
             user=POSTGRES_USER,
             password=POSTGRES_PASSWORD,
         )
@@ -312,7 +315,7 @@ def main():
         rows = df.collect()
         import psycopg2
         conn = psycopg2.connect(
-            host="postgres", port=5432, database="postgres",
+            host=POSTGRES_HOST, port=POSTGRES_PORT, database=POSTGRES_DB,
             user=POSTGRES_USER, password=POSTGRES_PASSWORD,
         )
         try:
