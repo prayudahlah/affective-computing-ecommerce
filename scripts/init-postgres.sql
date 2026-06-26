@@ -49,39 +49,94 @@ ON CONFLICT DO NOTHING;
 
 -- Fungsi dan trigger untuk notifikasi alert ke Telegram (via pg_notify)
 CREATE OR REPLACE FUNCTION notify_alert_inserted()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM pg_notify('alert_inserted', row_to_json(NEW)::text);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Fungsi PL/Python untuk forward alert ke Telegram
+-- Dipanggil oleh trigger trg_forward_alert di tabel alerts
+CREATE EXTENSION IF NOT EXISTS plpython3u;
 
-DROP TRIGGER IF EXISTS trg_alert_notify ON alerts;
-CREATE TRIGGER trg_alert_notify
+CREATE OR REPLACE FUNCTION forward_alert_to_telegram()
+RETURNS TRIGGER AS $$
+
+import json
+import urllib.request
+
+# ==== KONFIGURASI ====
+TOKEN = "8825916813:AAGEcVG4ySqVfHO8K5ahHa-6OST087iN1Hw"
+CHAT_ID = "-5338715921"
+# =====================
+
+# 1. Ambil data dari TD["new"]
+alert_type = TD['new']['alert_type']
+comment = (TD['new']['comment'] or '')[:200]
+rating_avg = TD['new']['rating_avg']
+review_id = TD['new']['review_id']
+
+# 2. JOIN ke tabel reviews ambil info produk
+plan = plpy.prepare("""
+    SELECT product_name, buyer_username, rating_star, sentiment
+    FROM reviews
+    WHERE id = $1
+""", ["int"])
+rows = plpy.execute(plan, [review_id])
+
+if not rows:
+    plpy.warning(f"Review {review_id} tidak ditemukan, alert skipped")
+    return "OK"
+
+r = rows[0]
+product = r['product_name'] or 'Tidak diketahui'
+username = r['buyer_username'] or '-'
+rating_star = r['rating_star'] or '-'
+sentiment = r['sentiment'] or '-'
+
+# 3. Format pesan
+msg = None
+
+if alert_type == 'rating_drop':
+    msg = (
+        f"\U0001f6a8 Rating Drop\n"
+        f"Produk: {product}\n"
+        f"User: {username}\n"
+        f"Rating: \u2b50{rating_star} (avg: {rating_avg})\n"
+        f"Sentimen: {sentiment}\n"
+        f'\U0001f4ac "{comment}"'
+    )
+
+elif alert_type == 'sentiment_negative':
+    msg = (
+        f"\U0001f6a8 Sentimen Negatif\n"
+        f"Produk: {product}\n"
+        f"User: {username}\n"
+        f"Rating: \u2b50{rating_star}\n"
+        f"Sentimen: {sentiment}\n"
+        f'\U0001f4ac "{comment}"'
+    )
+
+if msg is None:
+    plpy.warning(f"Unknown alert_type: {alert_type}")
+    return "OK"
+
+# 4. Kirim ke Telegram
+url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+body = json.dumps({
+    "chat_id": CHAT_ID,
+    "text": msg
+}).encode()
+
+try:
+    req = urllib.request.Request(url, data=body, headers={
+        'Content-Type': 'application/json'
+    })
+    resp = urllib.request.urlopen(req, timeout=10)
+    plpy.notice(f"Alert sent: {alert_type} for review {review_id}")
+except Exception as e:
+    plpy.warning(f"Gagal kirim Telegram: {e}")
+
+return "OK"
+
+$$ LANGUAGE plpython3u;
+
+DROP TRIGGER IF EXISTS trg_forward_alert ON alerts;
+CREATE TRIGGER trg_forward_alert
     AFTER INSERT ON alerts
     FOR EACH ROW
-    EXECUTE FUNCTION notify_alert_inserted();
-
--- Fungsi dan trigger untuk auto-insert ke alerts saat review dengan rating < 4 atau sentimen negatif
-CREATE OR REPLACE FUNCTION check_review_alert()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.rating_star < 4 THEN
-        INSERT INTO alerts (alert_type, comment, rating_avg, review_id)
-        VALUES ('rating_drop', NEW.comment, NEW.rating_star, NEW.id);
-    END IF;
-
-    IF NEW.sentiment = 'Negative' THEN
-        INSERT INTO alerts (alert_type, comment, review_id)
-        VALUES ('sentiment_negative', NEW.comment, NEW.id);
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_review_alert ON reviews;
-CREATE TRIGGER trg_review_alert
-    AFTER INSERT ON reviews
-    FOR EACH ROW
-    EXECUTE FUNCTION check_review_alert();
+    EXECUTE FUNCTION forward_alert_to_telegram();

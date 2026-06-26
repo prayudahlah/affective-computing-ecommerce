@@ -25,8 +25,8 @@ import json
 import urllib.request
 
 # ==== KONFIGURASI ====
-TOKEN = "8825916813:AAGEcVG4ySqVfHO8K5ahHa-6OST087iN1Hw"
-CHAT_ID = "5519545800"
+TOKEN = "changeme"
+CHAT_ID = "changeme"
 # =====================
 
 # 1. Ambil data dari TD["new"]
