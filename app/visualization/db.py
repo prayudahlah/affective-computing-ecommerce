@@ -36,16 +36,16 @@ def _build_review_filter(filters: dict) -> tuple[str, dict]:
     return clause, params
 
 
-def _build_alert_filter(filters: dict) -> tuple[str, dict]:
+def _build_alert_filter(filters: dict, date_column: str = "triggered_at") -> tuple[str, dict]:
     conditions = []
     params = {}
 
     if filters.get("date_from"):
-        conditions.append("triggered_at >= :date_from")
+        conditions.append(f"{date_column} >= :date_from")
         params["date_from"] = filters["date_from"]
 
     if filters.get("date_to"):
-        conditions.append("triggered_at < :date_to + INTERVAL '1 day'")
+        conditions.append(f"{date_column} < :date_to + INTERVAL '1 day'")
         params["date_to"] = filters["date_to"]
 
     clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
@@ -246,11 +246,13 @@ def get_total_reviews_count(filters: dict) -> int:
 
 
 def get_alerts_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFrame:
-    where, params = _build_alert_filter(filters)
+    where, params = _build_alert_filter(filters, date_column="r.create_time")
     params["limit"]  = limit
     params["offset"] = offset
     sql = f"""
-        SELECT a.triggered_at, a.alert_type, a.comment, a.rating_avg, r.create_time
+        SELECT a.triggered_at, a.alert_type, a.comment, a.rating_avg,
+               COALESCE(r.product_name, '—') AS product_name,
+               r.create_time AS review_created_at
         FROM alerts a
         LEFT JOIN reviews r ON a.review_id = r.id
         {where}
@@ -260,14 +262,19 @@ def get_alerts_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFr
     with engine.connect() as conn:
         df = pd.DataFrame(
             conn.execute(text(sql), params).fetchall(),
-            columns=["triggered_at", "alert_type", "comment", "rating_avg", "create_time"],
+            columns=["triggered_at", "alert_type", "comment", "rating_avg", "product_name", "review_created_at"],
         )
     return df
 
 
 def get_total_alerts_count(filters: dict) -> int:
-    where, params = _build_alert_filter(filters)
-    sql = f"SELECT COUNT(*) FROM alerts {where}"
+    where, params = _build_alert_filter(filters, date_column="r.create_time")
+    sql = f"""
+        SELECT COUNT(*)
+        FROM alerts a
+        LEFT JOIN reviews r ON a.review_id = r.id
+        {where}
+    """
     with engine.connect() as conn:
         return conn.execute(text(sql), params).scalar() or 0
 
