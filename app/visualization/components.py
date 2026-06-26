@@ -647,7 +647,7 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
                                 {review_date}
                             </span>
                             <span style="font-size:0.65rem;color:{TEXT_MUTED};margin-left:6px;">
-                                ulasan: {row["create_time"]}
+                                ulasan: {row["review_created_at"]}
                             </span>
                         </div>
                         <div style="font-size:0.72rem;font-weight:500;color:{ASUS_BLUE};margin-top:2px;">
