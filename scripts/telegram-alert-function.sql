@@ -51,6 +51,7 @@ if not rows:
 
 r = rows[0]
 product = r['product_name'] or 'Tidak diketahui'
+product_short = product.split('/', 1)[0]
 username = r['buyer_username'] or '-'
 rating_star = r['rating_star'] or '-'
 sentiment = r['sentiment'] or '-'
@@ -60,20 +61,20 @@ msg = None
 
 if alert_type == 'rating_drop':
     msg = (
-        f"\U0001f6a8 Rating Drop\n"
-        f"Produk: {product}\n"
+        f"\u26a0 *Rating Drop*\n"
+        f"_{product_short}_\n"
         f"User: {username}\n"
-        f"Rating: \u2b50{rating_star} (avg: {rating_avg})\n"
+        f"Rating: \u2605 {rating_star} (avg: {rating_avg})\n"
         f"Sentimen: {sentiment}\n"
         f'\U0001f4ac "{comment}"'
     )
 
 elif alert_type == 'sentiment_negative':
     msg = (
-        f"\U0001f6a8 Sentimen Negatif\n"
-        f"Produk: {product}\n"
+        f"\u26a0 *Sentimen Negatif*\n"
+        f"_{product_short}_\n"
         f"User: {username}\n"
-        f"Rating: \u2b50{rating_star}\n"
+        f"Rating: \u2605 {rating_star}\n"
         f"Sentimen: {sentiment}\n"
         f'\U0001f4ac "{comment}"'
     )
@@ -86,7 +87,8 @@ if msg is None:
 url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 body = json.dumps({
     "chat_id": CHAT_ID,
-    "text": msg
+    "text": msg,
+    "parse_mode": "Markdown"
 }).encode()
 
 try:
