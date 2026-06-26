@@ -95,6 +95,18 @@ services:
       - device_1
       - dev
 
+  kafka-ui:
+    image: docker.io/provectuslabs/kafka-ui:latest
+    restart: unless-stopped
+    ports:
+      - 8082:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${KAFKA_HOST_IP:-127.0.0.1}:9092
+    profiles:
+      - device_1
+      - dev
+
   data-preprocess:
     build:
       context: ./app/data-preprocess
@@ -205,6 +217,18 @@ services:
           });
           console.log("Replica set initialized");
         }
+    profiles:
+      - device_2
+      - dev
+
+  mongo-express:
+    image: docker.io/mongo-express:1.0.2-20
+    restart: unless-stopped
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://${KAFKA_HOST_IP:-127.0.0.1}:27017/${MONGO_DB:-ecommerce}?replicaSet=rs0
+      ME_CONFIG_BASICAUTH: "false"
     profiles:
       - device_2
       - dev
