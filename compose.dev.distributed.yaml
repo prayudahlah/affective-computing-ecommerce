@@ -288,7 +288,9 @@ services:
       - dev
 
   postgres:
-    image: docker.io/postgres:18.3-alpine3.23
+    build:
+      context: ./app/postgres
+      dockerfile: Containerfile
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql
@@ -308,27 +310,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    profiles:
-      - device_3
-      - dev
-
-  telegram-bot:
-    build:
-      context: ./app/telegram-bot
-      dockerfile: Containerfile
-    restart: unless-stopped
-    network_mode: host
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      INFERENCE_DB_HOST: localhost
-      INFERENCE_DB_USER: ${INFERENCE_DB_USER:-postgres}
-      INFERENCE_DB_PASSWORD: ${INFERENCE_DB_PASSWORD:-postgres}
-      INFERENCE_DB_NAME: ${INFERENCE_DB_NAME:-postgres}
-    env_file: .env
     profiles:
       - device_3
       - dev
