@@ -31,9 +31,14 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017")
 MONGO_DB = os.getenv("MONGO_DB", "ecommerce")
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "reviews")
 SPARK_MASTER_URL = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
+SPARK_TRIGGER_INTERVAL = os.getenv("SPARK_TRIGGER_INTERVAL", "1 seconds")
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/app/data/checkpoint")
-SENTIMENT_VECTORIZER_PATH = os.getenv("SENTIMENT_VECTORIZER_PATH", "/app/sentiment_vectorizer.joblib")
-EMOTION_VECTORIZER_PATH = os.getenv("EMOTION_VECTORIZER_PATH", "/app/emotion_vectorizer.joblib")
+SENTIMENT_VECTORIZER_PATH = os.getenv(
+    "SENTIMENT_VECTORIZER_PATH", "/app/sentiment_vectorizer.joblib"
+)
+EMOTION_VECTORIZER_PATH = os.getenv(
+    "EMOTION_VECTORIZER_PATH", "/app/emotion_vectorizer.joblib"
+)
 
 # ── Preprocessing ──────────────────────────────────────────────────
 
@@ -255,32 +260,109 @@ def _basic_features_row(text):
     )
 
     # 6 discriminative features
-    demand_words = {"kembalikan", "ganti", "refund", "komplain", "keluhan",
-                    "kembali", "tolong", "mohon", "urus", "klarifikasi", "balas"}
+    demand_words = {
+        "kembalikan",
+        "ganti",
+        "refund",
+        "komplain",
+        "keluhan",
+        "kembali",
+        "tolong",
+        "mohon",
+        "urus",
+        "klarifikasi",
+        "balas",
+    }
     n_demands = sum(1 for w in words_lower if w in demand_words)
-    uncertainty_words = {"mungkin", "khawatir", "takut", "was-was", "cemas",
-                         "ragu", "bimbang", "curiga", "sepertinya", "seolah",
-                         "antisipasi", "harap"}
+    uncertainty_words = {
+        "mungkin",
+        "khawatir",
+        "takut",
+        "was-was",
+        "cemas",
+        "ragu",
+        "bimbang",
+        "curiga",
+        "sepertinya",
+        "seolah",
+        "antisipasi",
+        "harap",
+    }
     n_uncertainty = sum(1 for w in words_lower if w in uncertainty_words)
-    swear_words = {"anjing", "bangsat", "bodoh", "tolol", "jelek", "parah",
-                   "payah", "sampah", "busuk", "brengsek", "persetan",
-                   "keparat", "setan", "sial", "kacau"}
+    swear_words = {
+        "anjing",
+        "bangsat",
+        "bodoh",
+        "tolol",
+        "jelek",
+        "parah",
+        "payah",
+        "sampah",
+        "busuk",
+        "brengsek",
+        "persetan",
+        "keparat",
+        "setan",
+        "sial",
+        "kacau",
+    }
     n_swear = sum(1 for w in words_lower if w in swear_words)
-    attachment_words = {"cinta", "sayang", "suka", "gemas",
-                        "love", "favorit", "kesayangan", "favorite"}
+    attachment_words = {
+        "cinta",
+        "sayang",
+        "suka",
+        "gemas",
+        "love",
+        "favorit",
+        "kesayangan",
+        "favorite",
+    }
     n_attachment = sum(1 for w in words_lower if w in attachment_words)
-    repurchase_words = {"beli lagi", "order lagi", "repeat order", "langganan",
-                        "balik lagi", "pasti beli", "akan beli", "nanti beli",
-                        "rekomendasi", "recommend", "beli disini terus"}
+    repurchase_words = {
+        "beli lagi",
+        "order lagi",
+        "repeat order",
+        "langganan",
+        "balik lagi",
+        "pasti beli",
+        "akan beli",
+        "nanti beli",
+        "rekomendasi",
+        "recommend",
+        "beli disini terus",
+    }
     n_repurchase = sum(1 for phrase in repurchase_words if phrase in text.lower())
-    transactional_words = {"bagus", "mantap", "ok", "oke", "cocok", "puas",
-                           "sesuai", "recommended", "keren", "mantul",
-                           "top", "good", "nice", "great", "worth"}
+    transactional_words = {
+        "bagus",
+        "mantap",
+        "ok",
+        "oke",
+        "cocok",
+        "puas",
+        "sesuai",
+        "recommended",
+        "keren",
+        "mantul",
+        "top",
+        "good",
+        "nice",
+        "great",
+        "worth",
+    }
     n_transactional = sum(1 for w in words_lower if w in transactional_words)
 
     return (
-        n_exclamation, n_question, n_allcaps, n_ellipsis, max_char_repeat,
-        n_demands, n_uncertainty, n_swear, n_attachment, n_repurchase, n_transactional,
+        n_exclamation,
+        n_question,
+        n_allcaps,
+        n_ellipsis,
+        max_char_repeat,
+        n_demands,
+        n_uncertainty,
+        n_swear,
+        n_attachment,
+        n_repurchase,
+        n_transactional,
     )
 
 
@@ -440,8 +522,12 @@ def main():
     processed = (
         parsed.withColumn("review_preprocessed", preprocess_udf(col("review")))
         .withColumn("emotion_features_basic", basic_features_udf(col("review")))
-        .withColumn("sentiment_vectorized", sentiment_vectorize_udf(col("review_preprocessed")))
-        .withColumn("emotion_vectorized", emotion_vectorize_udf(col("review_preprocessed")))
+        .withColumn(
+            "sentiment_vectorized", sentiment_vectorize_udf(col("review_preprocessed"))
+        )
+        .withColumn(
+            "emotion_vectorized", emotion_vectorize_udf(col("review_preprocessed"))
+        )
         .withColumn("preprocessed_at", current_timestamp())
     )
 
@@ -462,6 +548,7 @@ def main():
             MONGO_COLLECTION,
         )
         import hashlib
+
         client = pymongo.MongoClient(MONGO_URI)
         try:
             coll = client[MONGO_DB][MONGO_COLLECTION]
@@ -482,7 +569,7 @@ def main():
         processed.writeStream.foreachBatch(write_to_mongo)
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/mongodb")
-        .trigger(processingTime="10 seconds")
+        .trigger(processingTime="100 milliseconds")
         .start()
     )
 
@@ -491,7 +578,7 @@ def main():
         processed.writeStream.format("console")
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/console_debug")
-        .trigger(processingTime="10 seconds")
+        .trigger(processingTime="100 milliseconds")
         .start()
     )
 

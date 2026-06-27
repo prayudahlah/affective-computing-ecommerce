@@ -14,13 +14,17 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "cdc.mongodb.ecommerce.reviews")
 KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "ml-inference-group")
 SPARK_MASTER_URL = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
+SPARK_TRIGGER_INTERVAL = os.getenv("SPARK_TRIGGER_INTERVAL", "1 seconds")
 SPARK_DRIVER_HOST = os.getenv("SPARK_DRIVER_HOST", "127.0.0.1")
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/app/data/checkpoint")
 MODEL_DIR = os.getenv("MODEL_DIR", "/app/models")
 POSTGRES_HOST = os.getenv("INFERENCE_DB_HOST", "localhost")
 POSTGRES_PORT = int(os.getenv("INFERENCE_DB_HOST_PORT", "5432"))
 POSTGRES_DB = os.getenv("INFERENCE_DB_NAME", "postgres")
-POSTGRES_JDBC_URL = os.getenv("POSTGRES_JDBC_URL", f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}")
+POSTGRES_JDBC_URL = os.getenv(
+    "POSTGRES_JDBC_URL",
+    f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",
+)
 POSTGRES_USER = os.getenv("INFERENCE_DB_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("INFERENCE_DB_PASSWORD", "postgres")
 
@@ -30,10 +34,26 @@ EMOTION_MODEL_PATH = os.path.join(MODEL_DIR, "emotion_inference.joblib")
 
 def main():
     from pyspark.sql import SparkSession, DataFrame
-    from pyspark.sql.functions import from_json, col, udf, from_unixtime, coalesce, get_json_object, window, avg, expr
+    from pyspark.sql.functions import (
+        from_json,
+        col,
+        udf,
+        from_unixtime,
+        coalesce,
+        get_json_object,
+        window,
+        avg,
+        expr,
+    )
     from pyspark.sql.types import (
-        StructType, StructField, StringType, IntegerType,
-        FloatType, ArrayType, LongType, TimestampType,
+        StructType,
+        StructField,
+        StringType,
+        IntegerType,
+        FloatType,
+        ArrayType,
+        LongType,
+        TimestampType,
     )
     import joblib
 
@@ -80,55 +100,76 @@ def main():
     # Note: struct fields from Spark are stored as arrays in MongoDB
     # due to pandas serialization. emotion_features_basic = [n_exc, n_q, n_allcaps, n_el,
     # max_repeat, n_demands, n_unc, n_swear, n_attach, n_repurch, n_trans]
-    after_schema = StructType([
-        StructField("_id", StringType(), True),
-        StructField("nama pengguna", StringType(), True),
-        StructField("produk", StringType(), True),
-        StructField("review", StringType(), True),
-        StructField("rating", IntegerType(), True),
-        StructField("ctime", IntegerType(), True),
-        StructField("sentiment_vectorized", ArrayType(ArrayType(FloatType())), True),
-        StructField("emotion_vectorized", ArrayType(ArrayType(FloatType())), True),
-        StructField("emotion_features_basic", ArrayType(IntegerType()), True),
-    ])
+    after_schema = StructType(
+        [
+            StructField("_id", StringType(), True),
+            StructField("nama pengguna", StringType(), True),
+            StructField("produk", StringType(), True),
+            StructField("review", StringType(), True),
+            StructField("rating", IntegerType(), True),
+            StructField("ctime", IntegerType(), True),
+            StructField(
+                "sentiment_vectorized", ArrayType(ArrayType(FloatType())), True
+            ),
+            StructField("emotion_vectorized", ArrayType(ArrayType(FloatType())), True),
+            StructField("emotion_features_basic", ArrayType(IntegerType()), True),
+        ]
+    )
 
     # Schema for the Debezium envelope
-    envelope_schema = StructType([
-        StructField("schema", StringType(), True),
-        StructField("payload", StructType([
-            StructField("before", StringType(), True),
-            StructField("after", StringType(), True),
-            StructField("patch", StringType(), True),
-            StructField("filter", StringType(), True),
-            StructField("updateDescription", StringType(), True),
-            StructField("source", StructType([
-                StructField("version", StringType(), True),
-                StructField("connector", StringType(), True),
-                StructField("name", StringType(), True),
-                StructField("ts_ms", LongType(), True),
-                StructField("snapshot", StringType(), True),
-                StructField("db", StringType(), True),
-                StructField("sequence", StringType(), True),
-                StructField("collection", StringType(), True),
-                StructField("ord", IntegerType(), True),
-            ]), True),
-            StructField("op", StringType(), True),
-            StructField("ts_ms", LongType(), True),
-            StructField("transaction", StringType(), True),
-        ]), True),
-    ])
+    envelope_schema = StructType(
+        [
+            StructField("schema", StringType(), True),
+            StructField(
+                "payload",
+                StructType(
+                    [
+                        StructField("before", StringType(), True),
+                        StructField("after", StringType(), True),
+                        StructField("patch", StringType(), True),
+                        StructField("filter", StringType(), True),
+                        StructField("updateDescription", StringType(), True),
+                        StructField(
+                            "source",
+                            StructType(
+                                [
+                                    StructField("version", StringType(), True),
+                                    StructField("connector", StringType(), True),
+                                    StructField("name", StringType(), True),
+                                    StructField("ts_ms", LongType(), True),
+                                    StructField("snapshot", StringType(), True),
+                                    StructField("db", StringType(), True),
+                                    StructField("sequence", StringType(), True),
+                                    StructField("collection", StringType(), True),
+                                    StructField("ord", IntegerType(), True),
+                                ]
+                            ),
+                            True,
+                        ),
+                        StructField("op", StringType(), True),
+                        StructField("ts_ms", LongType(), True),
+                        StructField("transaction", StringType(), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
 
-    result_schema = StructType([
-        StructField("sentiment_label", StringType(), True),
-        StructField("emotion_label", StringType(), True),
-    ])
+    result_schema = StructType(
+        [
+            StructField("sentiment_label", StringType(), True),
+            StructField("emotion_label", StringType(), True),
+        ]
+    )
 
     # ── UDF: predict sentiment and emotion from precomputed features ─
 
     @udf(result_schema)
     def predict_udf(
         review: str,
-        sentiment_vec, emotion_vec,
+        sentiment_vec,
+        emotion_vec,
         basic_features,
     ):
         if not review or not review.strip():
@@ -149,7 +190,9 @@ def main():
 
         # 11 basic features from single array
         if basic_features and len(basic_features) >= 11:
-            basic_arr = np.array([float(basic_features[i]) for i in range(11)]).reshape(1, 11)
+            basic_arr = np.array([float(basic_features[i]) for i in range(11)]).reshape(
+                1, 11
+            )
         else:
             basic_arr = np.zeros((1, 11))
 
@@ -245,6 +288,7 @@ def main():
             return
         logger.info("[EPOCH %d] Writing %d predictions to PostgreSQL", epoch_id, count)
         import psycopg2
+
         rows = df.collect()
         conn = psycopg2.connect(
             host=POSTGRES_HOST,
@@ -256,7 +300,8 @@ def main():
         try:
             with conn.cursor() as cur:
                 for row in rows:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO reviews
                             (comment_id, buyer_username, product_name, comment,
                              rating_star, create_time, sentiment, emotion)
@@ -266,20 +311,38 @@ def main():
                             emotion = EXCLUDED.emotion,
                             processed_at = CURRENT_TIMESTAMP
                         RETURNING id
-                    """, (
-                        row.comment_id, row.buyer_username, row.product_name,
-                        row.comment, row.rating_star, row.create_time,
-                        row.sentiment, row.emotion,
-                    ))
+                    """,
+                        (
+                            row.comment_id,
+                            row.buyer_username,
+                            row.product_name,
+                            row.comment,
+                            row.rating_star,
+                            row.create_time,
+                            row.sentiment,
+                            row.emotion,
+                        ),
+                    )
                     review_id = cur.fetchone()[0]
-                    if row.sentiment == 'Negative' or row.emotion in ('Fear', 'Anger', 'Sadness'):
-                        logger.info("[ALERT] Sentimen negatif terdeteksi: %s", row.comment_id)
-                        cur.execute("""
+                    if row.sentiment == "Negative" or row.emotion in (
+                        "Fear",
+                        "Anger",
+                        "Sadness",
+                    ):
+                        logger.info(
+                            "[ALERT] Sentimen negatif terdeteksi: %s", row.comment_id
+                        )
+                        cur.execute(
+                            """
                             INSERT INTO alerts (alert_type, comment, review_id)
                             VALUES ('sentiment_negative', %s, %s)
-                        """, (row.comment, review_id))
+                        """,
+                            (row.comment, review_id),
+                        )
             conn.commit()
-            logger.info("[EPOCH %d] Upserted %d rows, alerts: %s", epoch_id, len(rows), count)
+            logger.info(
+                "[EPOCH %d] Upserted %d rows, alerts: %s", epoch_id, len(rows), count
+            )
         finally:
             conn.close()
 
@@ -289,7 +352,7 @@ def main():
         predictions.writeStream.foreachBatch(write_to_postgres)
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/postgres")
-        .trigger(processingTime="10 seconds")
+        .trigger(processingTime="100 milliseconds")
         .start()
     )
 
@@ -297,13 +360,12 @@ def main():
         predictions.writeStream.format("console")
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/console_debug")
-        .trigger(processingTime="10 seconds")
+        .trigger(processingTime="100 milliseconds")
         .start()
     )
 
     recent_ratings = (
-        predictions
-        .withColumn("ts", col("create_time").cast(TimestampType()))
+        predictions.withColumn("ts", col("create_time").cast(TimestampType()))
         .filter(col("ts") >= expr("current_timestamp() - INTERVAL '10 minutes'"))
         .withWatermark("ts", "1 minute")
         .groupBy(window(col("ts"), "10 minutes", "1 minute"))
@@ -317,14 +379,19 @@ def main():
             return
         rows = df.collect()
         import psycopg2
+
         conn = psycopg2.connect(
-            host=POSTGRES_HOST, port=POSTGRES_PORT, database=POSTGRES_DB,
-            user=POSTGRES_USER, password=POSTGRES_PASSWORD,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            database=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
         )
         try:
             with conn.cursor() as cur:
                 for row in rows:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO alerts (alert_type, rating_avg)
                         SELECT 'rating_drop', %s
                         WHERE NOT EXISTS (
@@ -332,16 +399,17 @@ def main():
                             WHERE alert_type = 'rating_drop'
                             AND triggered_at > NOW() - INTERVAL '10 minutes'
                         )
-                    """, (float(row.avg_rating),))
+                    """,
+                        (float(row.avg_rating),),
+                    )
             conn.commit()
         finally:
             conn.close()
 
     rating_alert_query = (
-        recent_ratings.writeStream
-        .foreachBatch(write_rating_alert)
+        recent_ratings.writeStream.foreachBatch(write_rating_alert)
         .outputMode("update")
-        .trigger(processingTime="10 seconds")
+        .trigger(processingTime="100 milliseconds")
         .option("checkpointLocation", CHECKPOINT_DIR + "/rating_alerts")
         .start()
     )
