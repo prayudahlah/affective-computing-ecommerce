@@ -23,7 +23,7 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://${DEVICE_1_IP:-127.0.0.1}:9092,CONTROLLER://localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://localhost:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${DEVICE_1_IP:-127.0.0.1}:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
@@ -154,7 +154,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host 127.0.0.1
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host 0.0.0.0
     env_file: .env
     profiles:
       - device_2
