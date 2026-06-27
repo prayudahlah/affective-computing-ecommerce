@@ -1,123 +1,199 @@
 # Affective Computing E-Commerce
+
+Pipeline scraping, preprocessing, machine learning, dan visualisasi ulasan produk e-commerce secara real-time.
+
 ---
 
-## Cara Setup dari Awal
+## Arsitektur
 
-### 1. Clone repository
+Data mengalir melalui 4 tahap: **Ingestion** (scrape Shopee → Kafka), **Preprocessing** (Spark → MongoDB → Debezium CDC → Kafka), **Inference** (Spark ML → PostgreSQL), **Visualisasi & Notifikasi** (Streamlit dashboard + Telegram alert).
 
-```bash
-git clone https://github.com/prayudahlah/affective-computing-ecommerce.git
-cd affective-computing-ecommerce
-git checkout mongodb
-```
+![Pipeline](https://via.placeholder.com/800x100?text=Shopee+API+%E2%86%92+data-poller+%E2%86%92+Kafka+%E2%86%92+preprocess+%E2%86%92+MongoDB+%E2%86%92+Debezium+%E2%86%92+Kafka+%E2%86%92+inference+%E2%86%92+PostgreSQL+%E2%86%92+Streamlit+/+Telegram)
 
-### 2. Buat file `.env`
+### Teknologi Utama
 
-Salin dari contoh yang tersedia, lalu sesuaikan isinya:
+| Komponen | Teknologi |
+|---|---|
+| Message Broker | Apache Kafka 4.1.2 |
+| Stream Processing | Apache Spark 4.1.2 Structured Streaming |
+| Document Store | MongoDB 8.0 (Replica Set) |
+| Change Data Capture | Debezium 3.1.2 |
+| Relational DB | PostgreSQL 18 + PL/Python3u |
+| Dashboard | Streamlit + Altair + SQLAlchemy |
+| Notifikasi | PostgreSQL Trigger → Telegram Bot API |
+| Orchestrasi | Docker Compose |
 
-```bash
-cp .env.example .env
-```
+---
 
-Variabel yang perlu diperhatikan:
+## Mode Deployment
 
-| Variabel | Keterangan |
-|----------|-----------|
-| `SHOPEE_URL` | URL halaman rating toko Shopee yang ingin di-scrape |
-| `SCRAPE_INTERVAL` | Jeda antar request scraping (detik), default `10` |
-| `MONGO_USER` / `MONGO_PASSWORD` | Kredensial MongoDB |
-| `INFERENCE_DB_USER` / `INFERENCE_DB_PASSWORD` | Kredensial PostgreSQL |
-| `TELEGRAM_BOT_TOKEN` | Token bot Telegram dari @BotFather (untuk PL/Python, isi langsung di `scripts/telegram-alert-function.sql`) |
-| `TELEGRAM_CHAT_ID` | ID chat tujuan alert Telegram (untuk PL/Python, isi langsung di `scripts/telegram-alert-function.sql`) |
+### 1. Local (1 mesin)
 
-### 2.5. Setup Telegram Alert (di PostgreSQL laptop 3)
-
-Alert otomatis terkirim ke Telegram via **PL/Python** — fungsi PostgreSQL yang dipanggil trigger setiap ada INSERT ke tabel `alerts`.
-
-#### 2.5.1. Buat bot Telegram
-
-1. Buka @BotFather di Telegram, ketik `/newbot`, ikuti petunjuk
-2. Simpan token (contoh: `7234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`)
-3. Kirim pesan ke bot kamu, lalu cek chat ID:
-   ```
-   https://api.telegram.org/bot<TOKEN>/getUpdates
-   ```
-4. Ganti `TOKEN` & `CHAT_ID` di `scripts/telegram-alert-function.sql`
-
-#### 2.5.2. Install plpython3u di PostgreSQL
-
-```bash
-# Jika pakai Docker, butuh image postgres dengan Python:
-# docker.io/postgres:18.3-bookworm (bukan alpine)
-```
-
-```sql
-CREATE EXTENSION IF NOT EXISTS plpython3u;
-```
-
-#### 2.5.3. Jalankan fungsi forward_alert_to_telegram
-
-```bash
-psql -U postgres -d postgres -f scripts/telegram-alert-function.sql
-```
-
-#### 2.5.4. Buat trigger yang memanggil fungsi
-
-```sql
-CREATE TRIGGER trg_forward_alert
-    AFTER INSERT ON alerts
-    FOR EACH ROW
-    EXECUTE FUNCTION forward_alert_to_telegram();
-```
-
-### 3. Jalankan semua container
+Semua service jalan di satu mesin. Cocok untuk development/testing.
 
 ```bash
 docker compose -f compose.dev.local.yaml --profile dev up -d --build
 ```
 
-Tunggu semua container berstatus `healthy` atau `running`:
+### 2. Distributed (4 mesin via Tailscale)
 
+Service terdistribusi ke 4 perangkat yang terhubung via Tailscale. Setiap perangkat menjalankan profile masing-masing.
+
+| Perangkat | Hostname | Profile | Layanan |
+|---|---|---|---|
+| Device 1 | nixia | `--profile device_1` | data-poller, kafka, kafka-init, kafka-ui |
+| Device 2 | prayudahlah | `--profile device_2` | data-preprocess, spark-master, spark-worker, mongodb, mongo-express, debezium |
+| Device 3 | anin | `--profile device_3` | ml-inference, spark-master, spark-worker, postgres |
+| Device 4 | vioouw | `--profile device_4` | streamlit |
+
+```bash
+# Di setiap device, jalankan profile masing-masing:
+docker compose -f compose.dev.distributed.yaml --profile device_X up -d --build
+```
+
+---
+
+## Setup
+
+### 1. Clone & Branch
+
+```bash
+git clone https://github.com/prayudahlah/affective-computing-ecommerce.git
+cd affective-computing-ecommerce
+```
+
+### 2. Buat `.env`
+
+```bash
+cp .env.example .env
+```
+
+### 3. Konfigurasi Environment
+
+| Variabel | Default | Keterangan |
+|---|---|---|
+| `SHOPEE_URL` | — | URL halaman rating toko Shopee |
+| `SCRAPE_INTERVAL` | 10 | Jeda antar request (detik) |
+| `POLL_INTERVAL` | 60 | Jeda siklus scraping (detik) |
+| `CATCHUP_WORKERS` | 3 | Jumlah worker catch-up paralel |
+| `DEVICE_1_IP` | 127.0.0.1 | Hostname/IP Kafka (device 1) |
+| `DEVICE_2_IP` | 127.0.0.1 | Hostname/IP Spark master (device 2) |
+| `DEVICE_3_IP` | 127.0.0.1 | Hostname/IP PostgreSQL (device 3) |
+| `DEVICE_4_IP` | 127.0.0.1 | Hostname/IP Streamlit (device 4) |
+| `KAFKA_HOST_PORT` | 9092 | Port Kafka |
+| `MONGO_HOST_PORT` | 27017 | Port MongoDB |
+| `INFERENCE_DB_HOST_PORT` | 5432 | Port PostgreSQL (host) |
+| `INFERENCE_DB_USER` | postgres | User PostgreSQL |
+| `INFERENCE_DB_PASSWORD` | postgres | Password PostgreSQL |
+| `INFERENCE_DB_NAME` | postgres | Database PostgreSQL |
+| `TELEGRAM_BOT_TOKEN` | — | Token bot Telegram |
+| `TELEGRAM_CHAT_ID` | — | ID chat tujuan notifikasi |
+
+> **Catatan:** Untuk mode distributed, set `DEVICE_X_IP` ke Tailscale MagicDNS atau IP Tailscale masing-masing perangkat.
+
+### 4. Setup Telegram Alert (Opsional)
+
+Alert otomatis terkirim via **PL/Python trigger** di PostgreSQL. Setup:
+
+1. Buat bot via [@BotFather](https://t.me/BotFather), dapatkan token
+2. Cari chat ID:
+   ```
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+3. Isi token & chat ID di `.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=7234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
+   TELEGRAM_CHAT_ID=-123456789
+   ```
+4. Service `postgres` akan menjalankan `init-telegram-config.sh` yang menyimpan kredensial via `ALTER SYSTEM SET`.
+
+### 5. Jalankan
+
+**Mode Local:**
+```bash
+docker compose -f compose.dev.local.yaml --profile dev up -d --build
+```
+
+**Mode Distributed:** jalankan perintah di atas di setiap device dengan profile masing-masing.
+
+### 6. Verifikasi
+
+Cek status container:
 ```bash
 docker compose -f compose.dev.local.yaml --profile dev ps
 ```
 
-### 4. Inisialisasi MongoDB Replica Set
-
-Otomatis via service `mongodb-init`. Cek log:
-
+Cek log inisialisasi:
 ```bash
-docker compose -f compose.dev.local.yaml --profile dev logs mongodb-init
+# MongoDB Replica Set
+docker compose logs mongodb-init
+
+# Debezium Connector
+docker compose logs debezium-register
 ```
 
-Output: `Replica set initialized` atau `Replica set already initialized`.
-
-### 5. Registrasi Debezium Connector
-
-Otomatis via service `debezium-register`. Cek log:
-
-```bash
-docker compose -f compose.dev.local.yaml --profile dev logs debezium-register
-```
-
-Output: `Success (HTTP 201)` atau `Success (HTTP 409)`. Verifikasi status connector:
-
-**Linux / Mac:**
+Verifikasi Debezium:
 ```bash
 curl http://localhost:8083/connectors/mongodb-source-connector/status
 ```
 
-**Windows (PowerShell):**
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8083/connectors/mongodb-source-connector/status"
+Akses dashboard:
+- **Streamlit:** http://localhost:8501
+- **Kafka UI:** http://localhost:8082
+- **Mongo-express:** http://localhost:8084
+- **Spark Master:** http://localhost:8080
+
+---
+
+## Alur Data Lengkap
+
+```
+[Shopee API]
+    │  HTTP scraping (POLL_INTERVAL=60s)
+    ▼
+[data-poller] ──Kafka "polled-data"──▶ [data-preprocess]
+(Device 1)                               (Spark Streaming, Device 2)
+                                             │
+                                             │ slang normalization, stemming,
+                                             │ TF-IDF vectorization, fitur dasar
+                                             ▼
+                                         [MongoDB]  (collection: ecommerce.reviews)
+                                             │
+                                             │ Debezium CDC (Replica Set rs0)
+                                             ▼
+                                    Kafka "cdc.mongodb.ecommerce.reviews"
+                                             │
+                                             ▼
+                                    [ml-inference]  (Spark Streaming, Device 3)
+                                             │
+                                             │ reconstruct TF-IDF vectors,
+                                             │ predict sentiment & emotion
+                                             ▼
+                                        [PostgreSQL]
+                                          ↙        ↘
+                                  [Streamlit]    [Telegram Bot]
+                                  (Dashboard)    (Notifikasi)
 ```
 
-Output harus mengandung `"state": "RUNNING"`.
+### Pipeline Detail
+
+1. **data-poller** — Scraping Shopee Open API secara periodik. Dua mode: catch-up (paralel, 3 worker) untuk data historis, dan realtime (sinkron, sequential) untuk data baru. Output ke Kafka topic `polled-data`.
+
+2. **data-preprocess** — Spark Structured Streaming membaca Kafka. Preprocessing teks Bahasa Indonesia: normalisasi slang, tokenisasi, stopword removal, stemming (Sastrawi), negation handling, TF-IDF vectorization (1500 fitur), ekstraksi 11 fitur dasar. Output ke MongoDB.
+
+3. **Debezium CDC** — MongoDB Replica Set → change stream → Kafka topic `cdc.mongodb.ecommerce.reviews`.
+
+4. **ml-inference** — Spark Structured Streaming membaca CDC Kafka. Rekonstruksi vektor TF-IDF dari sparse indices/values, prediksi sentimen (Logistic Regression, 2 kelas) dan emosi (SMOTE + Logistic Regression, 5 kelas). Output ke PostgreSQL + deteksi anomali (alert).
+
+5. **Streamlit Dashboard** — Visualisasi real-time: KPI cards, time series rating, distribusi sentimen/emosi, tabel review & alert.
+
+6. **Telegram Notification** — PostgreSQL trigger (PL/Python3u) → HTTP POST ke Telegram API.
 
 ---
 
 ## Catatan
 
-- `data-poller` akan restart otomatis setelah selesai scraping — ini perilaku normal jika tidak ada ulasan baru.
+- `data-poller` akan restart otomatis setelah selesai scraping — normal jika tidak ada ulasan baru.
 - Untuk scraping dengan cookie (akses lebih banyak data), letakkan file `cookies.json` di folder `app/data-poller/`.
-- Folder `storage/` tidak ikut di-push ke git (berisi data runtime). Jangan lupa jalankan langkah 4 setiap kali fresh clone.
+- Folder `storage/` tidak ikut di-push ke git (berisi data runtime).
+- Hapus folder checkpoint (`/app/data/checkpoint`) jika ingin memulai streaming dari awal.
