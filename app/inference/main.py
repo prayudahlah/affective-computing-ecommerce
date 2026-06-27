@@ -352,7 +352,7 @@ def main():
         predictions.writeStream.foreachBatch(write_to_postgres)
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/postgres")
-        .trigger(processingTime="100 milliseconds")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
         .start()
     )
 
@@ -360,7 +360,7 @@ def main():
         predictions.writeStream.format("console")
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/console_debug")
-        .trigger(processingTime="100 milliseconds")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
         .start()
     )
 
@@ -409,7 +409,7 @@ def main():
     rating_alert_query = (
         recent_ratings.writeStream.foreachBatch(write_rating_alert)
         .outputMode("update")
-        .trigger(processingTime="100 milliseconds")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
         .option("checkpointLocation", CHECKPOINT_DIR + "/rating_alerts")
         .start()
     )

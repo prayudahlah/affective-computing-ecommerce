@@ -1,0 +1,4 @@
+kafka-python==3.0.2
+psycopg2-binary==2.9.12
+pymongo==4.17.0
+numpy==2.2.6
