@@ -6,7 +6,6 @@ import aiohttp
 from datetime import datetime
 from kafka import KafkaProducer
 
-# ── Konfigurasi ──────────────────────────────────────────────────
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 KAFKA_TOPIC             = os.getenv("KAFKA_TOPIC", "polled-data")
 SHOPEE_URL              = os.getenv("SHOPEE_URL", "")
@@ -23,7 +22,6 @@ METADATA_FILE = os.path.join(DATA_DIR, "latest_metadata.json")
 COOKIES_FILE  = os.path.join(DATA_DIR, "cookies.json")
 
 
-# ── Kafka ─────────────────────────────────────────────────────────
 def init_producer() -> KafkaProducer:
     print(f"[KAFKA] Menghubungkan ke {KAFKA_BOOTSTRAP_SERVERS}...")
     producer = KafkaProducer(
@@ -35,7 +33,6 @@ def init_producer() -> KafkaProducer:
     return producer
 
 
-# ── Cookie ────────────────────────────────────────────────────────
 def load_cookie(cookies_file: str) -> str:
     if not os.path.exists(cookies_file):
         print(f"[COOKIE] File {cookies_file} tidak ditemukan, lanjut tanpa cookie.")
@@ -49,7 +46,6 @@ def load_cookie(cookies_file: str) -> str:
         return ""
 
 
-# ── Metadata ──────────────────────────────────────────────────────
 def load_metadata() -> dict:
     if not os.path.exists(METADATA_FILE) or os.path.getsize(METADATA_FILE) == 0:
         return {}
@@ -71,7 +67,6 @@ def save_metadata(metadata: dict):
         print(f"[META] Gagal menyimpan metadata: {e}")
 
 
-# ── Shared State untuk Catch-up ───────────────────────────────────
 class CatchUpState:
     def __init__(self, last_ctime: int):
         self.last_ctime          = last_ctime       # batas bawah — ulasan lama
@@ -83,7 +78,6 @@ class CatchUpState:
         self.empty_page_count    = 0                 # berapa kali dapat halaman BENAR-BENAR kosong (bukan error)
 
 
-# ── Fetch satu halaman (async) ────────────────────────────────────
 async def _fetch_once(
     session: aiohttp.ClientSession,
     api_url: str,
@@ -184,7 +178,6 @@ async def fetch_page(
     return None
 
 
-# ── Worker Catch-up ───────────────────────────────────────────────
 async def catchup_worker(
     worker_id: int,
     offset_queue: asyncio.Queue,
@@ -280,7 +273,6 @@ async def catchup_worker(
     print(f"[W{worker_id}] Worker selesai.")
 
 
-# ── Checkpoint helper ─────────────────────────────────────────────
 def _save_checkpoint(metadata: dict, shop_key: str, state: CatchUpState):
     now_epoch = int(time.time())
     metadata[shop_key] = {
@@ -294,7 +286,6 @@ def _save_checkpoint(metadata: dict, shop_key: str, state: CatchUpState):
     print(f"[CHECKPOINT] Disimpan pada {state.new_count} ulasan.")
 
 
-# ── Mode Catch-up (async) ─────────────────────────────────────────
 async def run_catchup(
     producer: KafkaProducer,
     shop_id: str,
@@ -356,7 +347,6 @@ async def run_catchup(
     return state.max_ctime
 
 
-# ── Mode Realtime (sync, single-threaded) ────────────────────────
 def run_realtime(
     producer: KafkaProducer,
     shop_id: str,
@@ -465,7 +455,6 @@ def run_realtime(
     return max_ctime
 
 
-# ── Deteksi Mode ──────────────────────────────────────────────────
 def is_catchup_needed(meta_entry: dict) -> bool:
     last_run_epoch = meta_entry.get("last_run_epoch", 0)
     if last_run_epoch == 0:
@@ -474,7 +463,6 @@ def is_catchup_needed(meta_entry: dict) -> bool:
     return gap > CATCHUP_THRESHOLD_SECS
 
 
-# ── Scrape & Produce (entry point per siklus) ─────────────────────
 def scrape_and_produce(producer: KafkaProducer):
     if not SHOPEE_URL:
         print("[ERROR] SHOPEE_URL belum di-set!")
@@ -516,7 +504,6 @@ def scrape_and_produce(producer: KafkaProducer):
         run_realtime(producer, shop_id, user_id, headers, last_ctime, metadata, shop_key)
 
 
-# ── Main Loop ─────────────────────────────────────────────────────
 def main():
     producer = init_producer()
     print(f"[POLLER] Mulai polling setiap {POLL_INTERVAL} detik...\n")

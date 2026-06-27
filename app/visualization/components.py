@@ -197,7 +197,6 @@ def inject_css():
             padding-top: 0.4rem;
         }}
 
-        
         .badge {{
             display: inline-block;
             padding: 2px 10px;

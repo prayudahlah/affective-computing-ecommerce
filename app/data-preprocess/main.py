@@ -4,6 +4,7 @@ import logging
 import re
 import itertools
 import ssl
+import hashlib
 
 import nltk
 import emoji
@@ -23,7 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("DataPoller")
 
-# ── Configuration ──────────────────────────────────────────────────
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "polled-data")
@@ -40,7 +40,6 @@ EMOTION_VECTORIZER_PATH = os.getenv(
     "EMOTION_VECTORIZER_PATH", "/app/emotion_vectorizer.joblib"
 )
 
-# ── Preprocessing ──────────────────────────────────────────────────
 
 _stemmer = None
 
@@ -250,7 +249,6 @@ def _basic_features_row(text):
         text = str(text) if text else ""
     words_lower = text.lower().split()
 
-    # 5 punctuation features
     n_exclamation = text.count("!")
     n_question = text.count("?")
     n_allcaps = sum(1 for w in text.split() if w.isupper() and len(w) > 2)
@@ -259,7 +257,6 @@ def _basic_features_row(text):
         (len(list(g)) for _, g in itertools.groupby(text.lower())), default=0
     )
 
-    # 6 discriminative features
     demand_words = {
         "kembalikan",
         "ganti",
@@ -366,7 +363,6 @@ def _basic_features_row(text):
     )
 
 
-# ── Main ───────────────────────────────────────────────────────────
 
 
 def main():
@@ -383,13 +379,7 @@ def main():
     import joblib
     import pymongo
 
-    logger.info("=" * 60)
-    logger.info("Spark Structured Streaming — Data Poller (Distributed UDF)")
-    logger.info("Kafka:        %s / %s", KAFKA_BOOTSTRAP_SERVERS, KAFKA_TOPIC)
-    logger.info("MongoDB:      %s / %s.%s", MONGO_URI, MONGO_DB, MONGO_COLLECTION)
-    logger.info("Spark master: %s", SPARK_MASTER_URL)
-    logger.info("Checkpoint:   %s", CHECKPOINT_DIR)
-    logger.info("=" * 60)
+    logger.info("StreamDataPreprocess started (kafka=%s, mongo=%s, spark=%s)", KAFKA_BOOTSTRAP_SERVERS, MONGO_URI, SPARK_MASTER_URL)
 
     spark = (
         SparkSession.builder.appName("StreamDataPreprocess")
@@ -436,7 +426,6 @@ def main():
             EMOTION_VECTORIZER_PATH,
         )
 
-    # ── UDF schemas ────────────────────────────────────────────────
 
     basic_schema = StructType(
         [
@@ -462,7 +451,6 @@ def main():
     )
     vector_schema = ArrayType(vector_item_schema)
 
-    # ── UDF definitions ────────────────────────────────────────────
 
     @udf(StringType())
     def preprocess_udf(text):
@@ -488,7 +476,6 @@ def main():
         row = vec[0]
         return [{"i": int(c), "v": float(v)} for c, v in zip(row.indices, row.data)]
 
-    # ── Kafka source ───────────────────────────────────────────────
 
     kafka_schema = StructType(
         [
@@ -511,13 +498,11 @@ def main():
         .load()
     )
 
-    # ── Parse JSON ─────────────────────────────────────────────────
 
     parsed = raw.select(
         from_json(col("value").cast("string"), kafka_schema).alias("data")
     ).select("data.*")
 
-    # ── Apply UDFs (distributed on workers) ────────────────────────
 
     processed = (
         parsed.withColumn("review_preprocessed", preprocess_udf(col("review")))
@@ -531,7 +516,6 @@ def main():
         .withColumn("preprocessed_at", current_timestamp())
     )
 
-    # ── foreachBatch: write to MongoDB via pymongo ──────────────
 
     def write_to_mongo(df: DataFrame, epoch_id: int):
         count = df.count()
@@ -547,7 +531,6 @@ def main():
             MONGO_DB,
             MONGO_COLLECTION,
         )
-        import hashlib
 
         client = pymongo.MongoClient(MONGO_URI)
         try:
@@ -563,7 +546,6 @@ def main():
         finally:
             client.close()
 
-    # ── MongoDB sink (foreachBatch ─ pymongo) ───────────────────
 
     mongo_query = (
         processed.writeStream.foreachBatch(write_to_mongo)
@@ -573,7 +555,6 @@ def main():
         .start()
     )
 
-    # ── Debug: console sink untuk isi processed ──────────────────
     debug_query = (
         processed.writeStream.format("console")
         .outputMode("append")

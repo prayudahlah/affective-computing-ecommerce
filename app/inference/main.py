@@ -57,13 +57,7 @@ def main():
     )
     import joblib
 
-    logger.info("=" * 60)
-    logger.info("Spark Structured Streaming — ML Inference")
-    logger.info("Kafka:        %s / %s", KAFKA_BOOTSTRAP_SERVERS, KAFKA_TOPIC)
-    logger.info("Spark master: %s", SPARK_MASTER_URL)
-    logger.info("PostgreSQL:   %s", POSTGRES_JDBC_URL)
-    logger.info("Checkpoint:   %s", CHECKPOINT_DIR)
-    logger.info("=" * 60)
+    logger.info("StreamMLInference started (kafka=%s, spark=%s, pg=%s)", KAFKA_BOOTSTRAP_SERVERS, SPARK_MASTER_URL, POSTGRES_JDBC_URL)
 
     spark = (
         SparkSession.builder.appName("StreamMLInference")
@@ -77,7 +71,6 @@ def main():
     spark.sparkContext.setLogLevel("WARN")
     logger.info("[SPARK] Session created")
 
-    # ── Load models ────────────────────────────────────────────────
 
     if not os.path.exists(SENTIMENT_MODEL_PATH):
         logger.error("Sentiment model not found at %s", SENTIMENT_MODEL_PATH)
@@ -94,12 +87,6 @@ def main():
     sentiment_bc = spark.sparkContext.broadcast(sentiment_model)
     emotion_bc = spark.sparkContext.broadcast(emotion_model)
 
-    # ── Schemas ────────────────────────────────────────────────────
-
-    # Schema for the MongoDB document inside payload.after
-    # Note: struct fields from Spark are stored as arrays in MongoDB
-    # due to pandas serialization. emotion_features_basic = [n_exc, n_q, n_allcaps, n_el,
-    # max_repeat, n_demands, n_unc, n_swear, n_attach, n_repurch, n_trans]
     after_schema = StructType(
         [
             StructField("_id", StringType(), True),
@@ -163,7 +150,6 @@ def main():
         ]
     )
 
-    # ── UDF: predict sentiment and emotion from precomputed features ─
 
     @udf(result_schema)
     def predict_udf(
@@ -180,7 +166,6 @@ def main():
         import numpy as np
         from scipy.sparse import csr_matrix, hstack
 
-        # Reconstruct 1500-dim sentiment vector
         s_indices = [int(p[0]) for p in sentiment_vec]
         s_values = [float(p[1]) for p in sentiment_vec]
         s_vec = csr_matrix(
@@ -188,7 +173,6 @@ def main():
             shape=(1, 1500),
         )
 
-        # 11 basic features from single array
         if basic_features and len(basic_features) >= 11:
             basic_arr = np.array([float(basic_features[i]) for i in range(11)]).reshape(
                 1, 11
@@ -196,11 +180,9 @@ def main():
         else:
             basic_arr = np.zeros((1, 11))
 
-        # Predict sentiment: 1500 TF-IDF + 11 basic = 1511
         X_sent = hstack([s_vec, csr_matrix(basic_arr)])
         sent_label = str(sentiment_bc.value.predict(X_sent)[0])
 
-        # Reconstruct 1500-dim emotion vector
         e_indices = [int(p[0]) for p in emotion_vec]
         e_values = [float(p[1]) for p in emotion_vec]
         e_vec = csr_matrix(
@@ -208,10 +190,8 @@ def main():
             shape=(1, 1500),
         )
 
-        # Sentiment binary feature
         sent_binary = np.array([[1.0 if sent_label == "Positive" else 0.0]])
 
-        # Combine: 1500 + 11 + 1 = 1512
         dense_part = csr_matrix(np.hstack([basic_arr, sent_binary]))
         X_emo = hstack([e_vec, dense_part])
 
@@ -219,7 +199,6 @@ def main():
 
         return (sent_label, emo_label)
 
-    # ── Kafka source ───────────────────────────────────────────────
 
     raw = (
         spark.readStream.format("kafka")
@@ -231,13 +210,11 @@ def main():
         .load()
     )
 
-    # ── Parse Debezium envelope ────────────────────────────────────
 
     parsed_envelope = raw.select(
         from_json(col("value").cast("string"), envelope_schema).alias("envelope")
     ).select("envelope.payload.*")
 
-    # ── Parse after field ──────────────────────────────────────────
 
     parsed = parsed_envelope.select(
         col("op"),
@@ -246,11 +223,9 @@ def main():
         col("after"),
     )
 
-    # ── Filter for insert / snapshot operations ────────────────────
 
     valid = parsed.where(col("op").isin(["c", "r"])).where(col("doc").isNotNull())
 
-    # ── Apply prediction ──────────────────────────────────────────
 
     predictions = valid.select(
         coalesce(
@@ -279,7 +254,6 @@ def main():
         col("result.emotion_label").alias("emotion"),
     )
 
-    # ── foreachBatch: write to PostgreSQL ──────────────────────────
 
     def write_to_postgres(df: DataFrame, epoch_id: int):
         count = df.count()
@@ -346,7 +320,6 @@ def main():
         finally:
             conn.close()
 
-    # ── Start streaming ───────────────────────────────────────────
 
     pg_query = (
         predictions.writeStream.foreachBatch(write_to_postgres)

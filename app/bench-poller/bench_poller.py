@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-# ── Config ──────────────────────────────────────────────────────────
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "polled-data")
 KAFKA_CDC_TOPIC = os.getenv("KAFKA_CDC_TOPIC", "cdc.mongodb.ecommerce.reviews")
@@ -58,7 +57,6 @@ def epoch_ms(dt):
     return int(dt.timestamp() * 1000)
 
 
-# ── Phase 1: Produce ───────────────────────────────────────────────
 def produce_messages(producer):
     if BENCH_STARTUP_DELAY_SEC > 0:
         print(f"[BENCH] Waiting {BENCH_STARTUP_DELAY_SEC}s for infrastructure...")
@@ -108,7 +106,6 @@ def produce_messages(producer):
     return messages
 
 
-# ── Phase 1b: CDC Consumer (background) ────────────────────────────
 def cdc_consumer_thread():
     from kafka import KafkaConsumer
 
@@ -156,7 +153,6 @@ def cdc_consumer_thread():
         consumer.close()
 
 
-# ── Phase 2: Wait ──────────────────────────────────────────────────
 def wait_postgres(expected_ids):
     import psycopg2
 
@@ -189,7 +185,6 @@ def wait_postgres(expected_ids):
     return False
 
 
-# ── Phase 3: Collect ───────────────────────────────────────────────
 def collect_timestamps(messages):
     import psycopg2
     import pymongo
@@ -262,7 +257,6 @@ def collect_timestamps(messages):
     return results
 
 
-# ── Phase 4: Aggregate ─────────────────────────────────────────────
 def compute_aggregates(results):
     def stats(vals):
         if not vals:
@@ -294,7 +288,6 @@ def compute_aggregates(results):
     }
 
 
-# ── Main ────────────────────────────────────────────────────────────
 def main():
     from kafka import KafkaProducer
 
