@@ -252,7 +252,8 @@ def get_alerts_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFr
     sql = f"""
         SELECT a.triggered_at, a.alert_type, a.comment, a.rating_avg,
                COALESCE(r.product_name, '—') AS product_name,
-               r.create_time AS review_created_at
+               r.create_time AS review_created_at,
+               r.rating_star AS review_rating
         FROM alerts a
         LEFT JOIN reviews r ON a.review_id = r.id
         {where}
@@ -262,7 +263,7 @@ def get_alerts_page(filters: dict, limit: int = 5, offset: int = 0) -> pd.DataFr
     with engine.connect() as conn:
         df = pd.DataFrame(
             conn.execute(text(sql), params).fetchall(),
-            columns=["triggered_at", "alert_type", "comment", "rating_avg", "product_name", "review_created_at"],
+            columns=["triggered_at", "alert_type", "comment", "rating_avg", "product_name", "review_created_at", "review_rating"],
         )
     return df
 
