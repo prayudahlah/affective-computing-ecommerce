@@ -340,7 +340,8 @@ services:
     build:
       context: ./app/visualization
       dockerfile: Containerfile
-    network_mode: host
+    ports:
+      - "8501:8501"
     environment:
       INFERENCE_DB_HOST: ${DEVICE_3_IP:-127.0.0.1}
       INFERENCE_DB_USER: ${INFERENCE_DB_USER:-postgres}
