@@ -2,3 +2,16 @@
 .env.*
 !.env.example
 storage/
+.idea
+__pycache__
+
+# Scraper
+cookies.json
+latest_metadata.json
+shoope_rating.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/

@@ -1,0 +1,570 @@
+import os
+import sys
+import logging
+import re
+import itertools
+import ssl
+import hashlib
+
+import nltk
+import emoji
+import pandas as pd
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+
+ssl._create_default_https_context = ssl._create_unverified_context
+nltk.download("punkt_tab", quiet=True)
+nltk.download("stopwords", quiet=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("DataPoller")
+
+
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "polled-data")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017")
+MONGO_DB = os.getenv("MONGO_DB", "ecommerce")
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "reviews")
+SPARK_MASTER_URL = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
+SPARK_TRIGGER_INTERVAL = os.getenv("SPARK_TRIGGER_INTERVAL", "1 seconds")
+CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/app/data/checkpoint")
+SENTIMENT_VECTORIZER_PATH = os.getenv(
+    "SENTIMENT_VECTORIZER_PATH", "/app/sentiment_vectorizer.joblib"
+)
+EMOTION_VECTORIZER_PATH = os.getenv(
+    "EMOTION_VECTORIZER_PATH", "/app/emotion_vectorizer.joblib"
+)
+
+
+_stemmer = None
+
+
+def _get_stemmer():
+    global _stemmer
+    if _stemmer is None:
+        factory = StemmerFactory()
+        _stemmer = factory.create_stemmer()
+    return _stemmer
+
+
+def _build_slang_dict():
+    paths = [
+        "/app/colloquial-indonesian-lexicon.csv",
+    ]
+    csv_path = next((p for p in paths if os.path.exists(p)), None)
+    if csv_path is None:
+        logger.warning("Slang lexicon CSV not found — slang normalization disabled")
+        return {}
+    logger.info("Loading slang lexicon from %s", csv_path)
+    kamus_df = pd.read_csv(csv_path)
+    kamus_valid = kamus_df[kamus_df["In-dictionary"] == 1]
+    slang_dict = {}
+    for _, row in kamus_valid.iterrows():
+        slang = str(row["slang"]).strip().lower()
+        formal = str(row["formal"]).strip().lower()
+        if slang in slang_dict:
+            if len(formal) < len(slang_dict[slang]):
+                slang_dict[slang] = formal
+        else:
+            slang_dict[slang] = formal
+    logger.info("Loaded %d slang entries", len(slang_dict))
+    return slang_dict
+
+
+def normalize_repetitive_chars(text):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    text = re.sub(r"(a)\1{2,}", "a", text)
+    text = re.sub(r"(i)\1{2,}", "i", text)
+    text = re.sub(r"(u)\1{2,}", "u", text)
+    text = re.sub(r"(e)\1{2,}", "e", text)
+    text = re.sub(r"(o)\1{2,}", "o", text)
+    text = re.sub(r"([^aiueo])\1{2,}", r"\1", text)
+    return text
+
+
+def normalize_slang(text, slang_dict):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if not slang_dict:
+        return text
+    words = text.split()
+    normalized = []
+    for w in words:
+        w_lower = w.lower()
+        if w_lower in slang_dict:
+            normalized.append(slang_dict[w_lower])
+        elif w_lower.rstrip(".,!?;:") in slang_dict:
+            punct = w[len(w_lower.rstrip(".,!?;:")) :]
+            normalized.append(slang_dict[w_lower.rstrip(".,!?;:")] + punct)
+        else:
+            normalized.append(w)
+    return " ".join(normalized)
+
+
+def emoji_to_text(text):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    return emoji.demojize(text, language="id")
+
+
+def tokenize(text):
+    if not isinstance(text, str) or not text.strip():
+        return []
+    return word_tokenize(text)
+
+
+def remove_stopwords(tokens):
+    stop_words = set(stopwords.words("indonesian"))
+    return [t for t in tokens if t.lower() not in stop_words]
+
+
+def pos_tag(tokens):
+    konjungsi = {
+        "dan",
+        "atau",
+        "tetapi",
+        "namun",
+        "sedangkan",
+        "serta",
+        "karena",
+        "sehingga",
+        "maka",
+        "lalu",
+        "kemudian",
+        "setelah",
+        "sebelum",
+        "ketika",
+        "sementara",
+        "walaupun",
+        "meskipun",
+        "jika",
+        "kalau",
+        "apabila",
+        "bahwa",
+    }
+    preposisi = {
+        "di",
+        "ke",
+        "dari",
+        "pada",
+        "dengan",
+        "untuk",
+        "bagi",
+        "oleh",
+        "tentang",
+        "seperti",
+        "sebagai",
+        "tanpa",
+        "dalam",
+        "antara",
+        "menurut",
+        "sampai",
+        "hingga",
+    }
+    hasil = []
+    for token in tokens:
+        t = token.lower()
+        if re.match(r"^[.,!?;:()\[\]{}\"\'\-]$", token):
+            hasil.append((token, "PUNCT"))
+        elif re.match(r"^[0-9.,\-]+$", token):
+            hasil.append((token, "NUM"))
+        elif t in konjungsi:
+            hasil.append((token, "CONJ"))
+        elif t in preposisi:
+            hasil.append((token, "ADP"))
+        elif re.match(r"^(me|men|meng|meny|mem|di|ber|bel|ter|per)", t):
+            hasil.append((token, "VERB"))
+        elif (
+            re.match(r"^(pe|pen|pem|peng|ke)", t)
+            or t.endswith("an")
+            or t.endswith("kan")
+        ):
+            hasil.append((token, "NOUN"))
+        elif t.endswith("i"):
+            hasil.append((token, "VERB"))
+        else:
+            hasil.append((token, "NOUN"))
+    return hasil
+
+
+def stem(tokens):
+    stemmer = _get_stemmer()
+    return [stemmer.stem(t) for t in tokens]
+
+
+def handle_negation(tokens):
+    neg_words = {
+        "tidak",
+        "bukan",
+        "belum",
+        "tak",
+        "ngga",
+        "gak",
+        "ga",
+        "tdk",
+        "enggak",
+        "nggak",
+        "kagak",
+        "ndak",
+        "ngg",
+    }
+    result = []
+    negate = False
+    for w in tokens:
+        w_clean = w.lower().strip(".,!?")
+        if w_clean in neg_words:
+            result.append(w)
+            negate = True
+        elif negate:
+            result.append("NEG_" + w)
+            negate = False
+        else:
+            result.append(w)
+    return result
+
+
+def full_pipeline(text, slang_dict):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    t = text
+    t = normalize_repetitive_chars(t)
+    t = normalize_slang(t, slang_dict)
+    t = emoji_to_text(t)
+    tokens = tokenize(t)
+    tokens = remove_stopwords(tokens)
+    pos_tags = pos_tag(tokens)
+    tokens = stem(tokens)
+    tokens = handle_negation(tokens)
+    return " ".join(tokens)
+
+
+def _basic_features_row(text):
+    if not isinstance(text, str):
+        text = str(text) if text else ""
+    words_lower = text.lower().split()
+
+    n_exclamation = text.count("!")
+    n_question = text.count("?")
+    n_allcaps = sum(1 for w in text.split() if w.isupper() and len(w) > 2)
+    n_ellipsis = text.count("..")
+    max_char_repeat = max(
+        (len(list(g)) for _, g in itertools.groupby(text.lower())), default=0
+    )
+
+    demand_words = {
+        "kembalikan",
+        "ganti",
+        "refund",
+        "komplain",
+        "keluhan",
+        "kembali",
+        "tolong",
+        "mohon",
+        "urus",
+        "klarifikasi",
+        "balas",
+    }
+    n_demands = sum(1 for w in words_lower if w in demand_words)
+    uncertainty_words = {
+        "mungkin",
+        "khawatir",
+        "takut",
+        "was-was",
+        "cemas",
+        "ragu",
+        "bimbang",
+        "curiga",
+        "sepertinya",
+        "seolah",
+        "antisipasi",
+        "harap",
+    }
+    n_uncertainty = sum(1 for w in words_lower if w in uncertainty_words)
+    swear_words = {
+        "anjing",
+        "bangsat",
+        "bodoh",
+        "tolol",
+        "jelek",
+        "parah",
+        "payah",
+        "sampah",
+        "busuk",
+        "brengsek",
+        "persetan",
+        "keparat",
+        "setan",
+        "sial",
+        "kacau",
+    }
+    n_swear = sum(1 for w in words_lower if w in swear_words)
+    attachment_words = {
+        "cinta",
+        "sayang",
+        "suka",
+        "gemas",
+        "love",
+        "favorit",
+        "kesayangan",
+        "favorite",
+    }
+    n_attachment = sum(1 for w in words_lower if w in attachment_words)
+    repurchase_words = {
+        "beli lagi",
+        "order lagi",
+        "repeat order",
+        "langganan",
+        "balik lagi",
+        "pasti beli",
+        "akan beli",
+        "nanti beli",
+        "rekomendasi",
+        "recommend",
+        "beli disini terus",
+    }
+    n_repurchase = sum(1 for phrase in repurchase_words if phrase in text.lower())
+    transactional_words = {
+        "bagus",
+        "mantap",
+        "ok",
+        "oke",
+        "cocok",
+        "puas",
+        "sesuai",
+        "recommended",
+        "keren",
+        "mantul",
+        "top",
+        "good",
+        "nice",
+        "great",
+        "worth",
+    }
+    n_transactional = sum(1 for w in words_lower if w in transactional_words)
+
+    return (
+        n_exclamation,
+        n_question,
+        n_allcaps,
+        n_ellipsis,
+        max_char_repeat,
+        n_demands,
+        n_uncertainty,
+        n_swear,
+        n_attachment,
+        n_repurchase,
+        n_transactional,
+    )
+
+
+
+
+def main():
+    from pyspark.sql import SparkSession, DataFrame
+    from pyspark.sql.functions import from_json, col, current_timestamp, udf
+    from pyspark.sql.types import (
+        StructType,
+        StructField,
+        StringType,
+        IntegerType,
+        ArrayType,
+        FloatType,
+    )
+    import joblib
+    import pymongo
+
+    logger.info("StreamDataPreprocess started (kafka=%s, mongo=%s, spark=%s)", KAFKA_BOOTSTRAP_SERVERS, MONGO_URI, SPARK_MASTER_URL)
+
+    spark = (
+        SparkSession.builder.appName("StreamDataPreprocess")
+        .master(SPARK_MASTER_URL)
+        .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.cores.max", "2")
+        .getOrCreate()
+    )
+    spark.sparkContext.setLogLevel("WARN")
+    logger.info("[SPARK] Session created")
+
+    # Broadcast: slang dictionary
+    slang_dict = _build_slang_dict()
+    slang_dict_bc = spark.sparkContext.broadcast(slang_dict)
+    logger.info("[BCAST] Slang dict broadcast (%d entries)", len(slang_dict))
+
+    # Broadcast: TF-IDF vectorizers
+    sentiment_vectorizer_bc = None
+    if os.path.exists(SENTIMENT_VECTORIZER_PATH):
+        vec = joblib.load(SENTIMENT_VECTORIZER_PATH)
+        sentiment_vectorizer_bc = spark.sparkContext.broadcast(vec)
+        logger.info(
+            "[BCAST] Sentiment vectorizer (max_features=%s)",
+            getattr(vec, "max_features", "?"),
+        )
+    else:
+        logger.warning(
+            "Sentiment vectorizer not found at %s — disabled",
+            SENTIMENT_VECTORIZER_PATH,
+        )
+
+    emotion_vectorizer_bc = None
+    if os.path.exists(EMOTION_VECTORIZER_PATH):
+        vec = joblib.load(EMOTION_VECTORIZER_PATH)
+        emotion_vectorizer_bc = spark.sparkContext.broadcast(vec)
+        logger.info(
+            "[BCAST] Emotion vectorizer (max_features=%s, ngram=%s)",
+            getattr(vec, "max_features", "?"),
+            getattr(vec, "ngram_range", "?"),
+        )
+    else:
+        logger.warning(
+            "Emotion vectorizer not found at %s — disabled",
+            EMOTION_VECTORIZER_PATH,
+        )
+
+
+    basic_schema = StructType(
+        [
+            StructField("n_exclamation", IntegerType(), False),
+            StructField("n_question", IntegerType(), False),
+            StructField("n_allcaps", IntegerType(), False),
+            StructField("n_ellipsis", IntegerType(), False),
+            StructField("max_char_repeat", IntegerType(), False),
+            StructField("n_demands", IntegerType(), False),
+            StructField("n_uncertainty", IntegerType(), False),
+            StructField("n_swear", IntegerType(), False),
+            StructField("n_attachment", IntegerType(), False),
+            StructField("n_repurchase", IntegerType(), False),
+            StructField("n_transactional", IntegerType(), False),
+        ]
+    )
+
+    vector_item_schema = StructType(
+        [
+            StructField("i", IntegerType(), False),
+            StructField("v", FloatType(), False),
+        ]
+    )
+    vector_schema = ArrayType(vector_item_schema)
+
+
+    @udf(StringType())
+    def preprocess_udf(text):
+        return full_pipeline(text, slang_dict_bc.value)
+
+    @udf(basic_schema)
+    def basic_features_udf(text):
+        return _basic_features_row(text)
+
+    @udf(vector_schema)
+    def sentiment_vectorize_udf(text):
+        if sentiment_vectorizer_bc is None or not text or not text.strip():
+            return []
+        vec = sentiment_vectorizer_bc.value.transform([text])
+        row = vec[0]
+        return [{"i": int(c), "v": float(v)} for c, v in zip(row.indices, row.data)]
+
+    @udf(vector_schema)
+    def emotion_vectorize_udf(text):
+        if emotion_vectorizer_bc is None or not text or not text.strip():
+            return []
+        vec = emotion_vectorizer_bc.value.transform([text])
+        row = vec[0]
+        return [{"i": int(c), "v": float(v)} for c, v in zip(row.indices, row.data)]
+
+
+    kafka_schema = StructType(
+        [
+            StructField("nama pengguna", StringType()),
+            StructField("produk", StringType()),
+            StructField("review", StringType()),
+            StructField("rating", IntegerType()),
+            StructField("waktu transaksi", StringType()),
+            StructField("ctime", IntegerType()),
+        ]
+    )
+
+    raw = (
+        spark.readStream.format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+        .option("subscribe", KAFKA_TOPIC)
+        .option("startingOffsets", "earliest")
+        .option("failOnDataLoss", "false")
+        .option("maxOffsetsPerTrigger", "1000")
+        .load()
+    )
+
+
+    parsed = raw.select(
+        from_json(col("value").cast("string"), kafka_schema).alias("data")
+    ).select("data.*")
+
+
+    processed = (
+        parsed.withColumn("review_preprocessed", preprocess_udf(col("review")))
+        .withColumn("emotion_features_basic", basic_features_udf(col("review")))
+        .withColumn(
+            "sentiment_vectorized", sentiment_vectorize_udf(col("review_preprocessed"))
+        )
+        .withColumn(
+            "emotion_vectorized", emotion_vectorize_udf(col("review_preprocessed"))
+        )
+        .withColumn("preprocessed_at", current_timestamp())
+    )
+
+
+    def write_to_mongo(df: DataFrame, epoch_id: int):
+        count = df.count()
+        if count == 0:
+            logger.info("[EPOCH %d] No records to write", epoch_id)
+            return
+        pdf = df.toPandas()
+        records = pdf.to_dict(orient="records")
+        logger.info(
+            "[EPOCH %d] Writing %d records to MongoDB %s.%s",
+            epoch_id,
+            len(records),
+            MONGO_DB,
+            MONGO_COLLECTION,
+        )
+
+        client = pymongo.MongoClient(MONGO_URI)
+        try:
+            coll = client[MONGO_DB][MONGO_COLLECTION]
+            for record in records:
+                key = f"{record.get('ctime')}_{record.get('nama pengguna')}"
+                record["_id"] = hashlib.md5(key.encode()).hexdigest()
+                coll.replace_one({"_id": record["_id"]}, record, upsert=True)
+            logger.info("[EPOCH %d] Upserted %d documents", epoch_id, len(records))
+        except Exception as e:
+            logger.error("[EPOCH %d] MongoDB write failed: %s", epoch_id, e)
+            raise
+        finally:
+            client.close()
+
+
+    mongo_query = (
+        processed.writeStream.foreachBatch(write_to_mongo)
+        .outputMode("append")
+        .option("checkpointLocation", CHECKPOINT_DIR + "/mongodb")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
+        .start()
+    )
+
+    debug_query = (
+        processed.writeStream.format("console")
+        .outputMode("append")
+        .option("checkpointLocation", CHECKPOINT_DIR + "/console_debug")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
+        .start()
+    )
+
+    mongo_query.awaitTermination()
+
+
+if __name__ == "__main__":
+    main()

@@ -5,8 +5,8 @@ USER root
 WORKDIR /app
 
 COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+  python3 -c "import nltk; nltk.download('punkt_tab', download_dir='/usr/share/nltk_data', quiet=True); nltk.download('stopwords', download_dir='/usr/share/nltk_data', quiet=True)"
 
 RUN wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.2/spark-sql-kafka-0-10_2.13-4.1.2.jar && \
@@ -17,11 +17,15 @@ RUN wget -q -P /opt/spark/jars/ \
   wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.1.2/spark-token-provider-kafka-0-10_2.13-4.1.2.jar
 
-COPY . /app/models/
-
 RUN wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.13/10.4.0/mongo-spark-connector_2.13-10.4.0.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-sync/5.1.4/mongodb-driver-sync-5.1.4.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-core/5.1.4/mongodb-driver-core-5.1.4.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/bson/5.1.4/bson-5.1.4.jar && \
+  wget -q -P /opt/spark/jars/ \
   https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar
 
-RUN mkdir -p /app/data
-
-CMD /opt/spark/bin/spark-submit --master ${SPARK_MASTER_URL:-local[*]} /app/models/main.py
+COPY . .

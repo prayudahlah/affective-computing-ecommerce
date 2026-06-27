@@ -1,0 +1,34 @@
+FROM docker.io/apache/spark:4.1.2
+
+USER root
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt && \
+  python3 -c "import nltk; nltk.download('punkt_tab', download_dir='/usr/share/nltk_data', quiet=True); nltk.download('stopwords', download_dir='/usr/share/nltk_data', quiet=True)"
+RUN wget -q -O /app/colloquial-indonesian-lexicon.csv \
+  https://raw.githubusercontent.com/nasalsabila/kamus-alay/master/colloquial-indonesian-lexicon.csv
+
+RUN wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.2/spark-sql-kafka-0-10_2.13-4.1.2.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.1/kafka-clients-3.9.1.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.1.2/spark-token-provider-kafka-0-10_2.13-4.1.2.jar
+
+RUN wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.13/10.4.0/mongo-spark-connector_2.13-10.4.0.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-sync/5.1.4/mongodb-driver-sync-5.1.4.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-core/5.1.4/mongodb-driver-core-5.1.4.jar && \
+  wget -q -P /opt/spark/jars/ \
+  https://repo1.maven.org/maven2/org/mongodb/bson/5.1.4/bson-5.1.4.jar
+
+COPY . .
+
+CMD /opt/spark/bin/spark-submit --master ${SPARK_MASTER_URL:-local[*]} /app/main.py
