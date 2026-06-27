@@ -1,9 +1,14 @@
-# Affective Computing E-Commerce
 
-Pipeline scraping, preprocessing, machine learning, dan visualisasi ulasan produk e-commerce secara real-time.
+
+# ROSBD Kelompok 4 - Kelas A
+<p align="center">
+  Anindya Artanti Pambudi | L0224002<br>
+  Prayuda Afifan Handoyo | L0224008<br>
+  Satria Manggala Putra Pratama | L0224024<br> 
+  Viola Herfina Putri | L0224026<br> 
+</p>
 
 ---
-
 ## Arsitektur
 
 Data mengalir melalui 4 tahap: **Ingestion** (scrape Shopee → Kafka), **Preprocessing** (Spark → MongoDB → Debezium CDC → Kafka), **Inference** (Spark ML → PostgreSQL), **Visualisasi & Notifikasi** (Streamlit dashboard + Telegram alert).
