@@ -627,6 +627,9 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
     df["rating_avg"]        = df["rating_avg"].apply(
         lambda x: f"{float(x):.2f}" if pd.notna(x) else "—"
     )
+    df["review_rating"]     = df["review_rating"].apply(
+        lambda x: str(int(x)) if pd.notna(x) else "—"
+    )
 
     for _, row in df.iterrows():
         alert_label = ALERT_TYPE_LABELS.get(row["alert_type"], row["alert_type"])
@@ -635,6 +638,7 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
         is_rating = row["alert_type"] == "rating_drop"
         accent = ACCENT_PURPLE if is_rating else ACCENT_RED
         review_date = row["review_created_at"] if pd.notna(row["review_created_at"]) else row["triggered_at"]
+        rating_display = row["rating_avg"] if is_rating else row["review_rating"]
 
         st.markdown(
             f"""
@@ -646,9 +650,6 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
                             <span style="font-size:0.7rem;color:{TEXT_MUTED};margin-left:8px;">
                                 {review_date}
                             </span>
-                            <span style="font-size:0.65rem;color:{TEXT_MUTED};margin-left:6px;">
-                                ulasan: {row["review_created_at"]}
-                            </span>
                         </div>
                         <div style="font-size:0.72rem;font-weight:500;color:{ASUS_BLUE};margin-top:2px;">
                             {_short_product_name(row["product_name"])}
@@ -659,7 +660,7 @@ def render_alerts_table(df: pd.DataFrame, page: int, total: int, page_size: int)
                     </div>
                     <div style="text-align:right;flex-shrink:0;">
                         <span style="font-size:0.9rem;font-weight:700;color:{accent};">
-                            ⌀ {row["rating_avg"]}
+                            rating: {rating_display}
                         </span>
                     </div>
                 </div>
