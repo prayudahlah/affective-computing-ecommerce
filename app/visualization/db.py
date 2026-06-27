@@ -6,8 +6,9 @@ from sqlalchemy import create_engine, text
 DB_USER     = os.getenv("INFERENCE_DB_USER",     "postgres")
 DB_PASSWORD = os.getenv("INFERENCE_DB_PASSWORD", "postgres")
 DB_HOST     = os.getenv("INFERENCE_DB_HOST",     "postgres")
+DB_PORT     = int(os.getenv("INFERENCE_DB_HOST_PORT", "5432"))
 DB_NAME     = os.getenv("INFERENCE_DB_NAME",     "postgres")
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(DATABASE_URL)
 
