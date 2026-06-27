@@ -569,7 +569,7 @@ def main():
         processed.writeStream.foreachBatch(write_to_mongo)
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/mongodb")
-        .trigger(processingTime="100 milliseconds")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
         .start()
     )
 
@@ -578,7 +578,7 @@ def main():
         processed.writeStream.format("console")
         .outputMode("append")
         .option("checkpointLocation", CHECKPOINT_DIR + "/console_debug")
-        .trigger(processingTime="100 milliseconds")
+        .trigger(processingTime=SPARK_TRIGGER_INTERVAL)
         .start()
     )
 
