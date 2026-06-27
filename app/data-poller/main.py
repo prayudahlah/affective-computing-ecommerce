@@ -11,7 +11,7 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 KAFKA_TOPIC             = os.getenv("KAFKA_TOPIC", "polled-data")
 SHOPEE_URL              = os.getenv("SHOPEE_URL", "")
 SCRAPE_INTERVAL         = float(os.getenv("SCRAPE_INTERVAL", "10"))
-POLL_INTERVAL           = int(os.getenv("POLL_INTERVAL", "60"))
+POLL_INTERVAL           = float(os.getenv("POLL_INTERVAL", "60"))
 DATA_DIR                = os.getenv("DATA_DIR", "/app/data")
 
 CATCHUP_WORKERS         = int(os.getenv("CATCHUP_WORKERS", "10"))
